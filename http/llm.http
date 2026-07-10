@@ -1,0 +1,2 @@
+### llm호출 답변 생성
+GET http://localhost:8081/llm?message=지금 밖 날씨 어때
