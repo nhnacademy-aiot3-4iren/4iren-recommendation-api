@@ -1,2 +1,2 @@
 ### llm호출 답변 생성
-GET http://localhost:8081/llm?message=오늘 날씨 어때
+GET http://localhost:8763/llm?message=오늘 날씨 어때

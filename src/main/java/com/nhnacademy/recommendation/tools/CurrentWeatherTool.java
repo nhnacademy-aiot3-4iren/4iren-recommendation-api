@@ -1,6 +1,6 @@
 package com.nhnacademy.recommendation.tools;
 
-import com.nhnacademy.recommendation.adaptor.EnvironmentClient;
+import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.dto.llm.KmaCurrentWeatherResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class CurrentWeatherTool {
 
-    private final EnvironmentClient environmentClient;
+    private final CoreClient coreClient;
 
 
 
@@ -27,6 +27,6 @@ public class CurrentWeatherTool {
     public KmaCurrentWeatherResponseDto getCurrentWeather(@ToolParam(description = "정보를 조회할 지역름 이름") String region){
         log.info("[Current Weather Tool] 실시간 날씨 조회 호출");
 
-        return environmentClient.getNcst(region).getBody();
+        return coreClient.getNcst(region).getBody();
     }
 }
