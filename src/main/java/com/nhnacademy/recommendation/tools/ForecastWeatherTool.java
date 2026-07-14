@@ -1,7 +1,7 @@
 package com.nhnacademy.recommendation.tools;
 
 
-import com.nhnacademy.recommendation.adaptor.EnvironmentClient;
+import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.dto.llm.KmaForecastWeatherResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class ForecastWeatherTool {
 
-    private final EnvironmentClient environmentClient;
+    private final CoreClient coreClient;
 
 
     @Tool(name = "forecast_weather",
@@ -25,7 +25,7 @@ public class ForecastWeatherTool {
     public KmaForecastWeatherResponseDto getTodayForecastWeather(@ToolParam(description = "정보를 조회할 지역 이름") String region) {
         log.info("[Forecast Weather Tool] 오늘 날씨 예보 호출");
 
-        return environmentClient.getFcst(region).getBody();
+        return coreClient.getFcst(region).getBody();
 
     }
 
