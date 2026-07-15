@@ -1,4 +1,4 @@
-package com.nhnacademy.recommendation.dto.llm;
+package com.nhnacademy.recommendation.dto.kma;
 
 import java.util.List;
 
