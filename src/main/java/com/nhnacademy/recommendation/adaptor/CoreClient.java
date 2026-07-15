@@ -1,7 +1,7 @@
 package com.nhnacademy.recommendation.adaptor;
 
-import com.nhnacademy.recommendation.dto.llm.KmaCurrentWeatherResponseDto;
-import com.nhnacademy.recommendation.dto.llm.KmaForecastWeatherResponseDto;
+import com.nhnacademy.recommendation.dto.kma.KmaCurrentWeatherResponseDto;
+import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

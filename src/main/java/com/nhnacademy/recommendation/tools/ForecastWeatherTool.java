@@ -2,7 +2,7 @@ package com.nhnacademy.recommendation.tools;
 
 
 import com.nhnacademy.recommendation.adaptor.CoreClient;
-import com.nhnacademy.recommendation.dto.llm.KmaForecastWeatherResponseDto;
+import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;

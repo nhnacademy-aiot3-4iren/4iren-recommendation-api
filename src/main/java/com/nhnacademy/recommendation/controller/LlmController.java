@@ -1,5 +1,6 @@
 package com.nhnacademy.recommendation.controller;
 
+import com.nhnacademy.recommendation.dto.llm.LlmAnswerDto;
 import com.nhnacademy.recommendation.service.LlmService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +16,7 @@ public class LlmController {
     private final LlmService llmService;
 
     @GetMapping("/llm")
-    public String getAnswer(@RequestParam String message){
+    public LlmAnswerDto getAnswer(@RequestParam String message){
         return llmService.answer(message);
     }
 }
