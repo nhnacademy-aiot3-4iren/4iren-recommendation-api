@@ -1,2 +1,3 @@
 ### llm호출 답변 생성
-GET http://localhost:8763/llm?message=지금 강의실 이산화탄소 농도가 1100ppm인데 어떡할까?
+GET http://localhost:8763/api/recommendation/llm?message=지금 강의실 이산화탄소 농도가 1100ppm인데 어떡할까?
+

@@ -33,3 +33,5 @@ build/
 .vscode/
 
 .env
+http
+src/main/resources/application-dev.properties
