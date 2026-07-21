@@ -8,15 +8,20 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 public class LlmAnswerDto {
+    private String userId;
     private final String message;
     private final String answer;
     private final LocalDateTime requestedAt;
+    private final LocalDateTime receivedAt;
     private final LocalDateTime answeredAt;
 
-    public LlmAnswerDto(String message, String answer, LocalDateTime requestedAt) {
+    public LlmAnswerDto(String message, String answer, LocalDateTime requestedAt, LocalDateTime receivedAt) {
+        userId = null;
         this.message = message;
         this.answer = answer;
         this.requestedAt = requestedAt;
+        this.receivedAt = receivedAt;
         answeredAt = LocalDateTime.now();
     }
+
 }
