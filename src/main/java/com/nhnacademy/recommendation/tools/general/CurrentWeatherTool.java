@@ -1,4 +1,4 @@
-package com.nhnacademy.recommendation.tools;
+package com.nhnacademy.recommendation.tools.general;
 
 import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.dto.kma.KmaCurrentWeatherResponseDto;

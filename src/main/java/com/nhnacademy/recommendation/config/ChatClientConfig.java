@@ -1,9 +1,12 @@
 package com.nhnacademy.recommendation.config;
 
-import com.nhnacademy.recommendation.tools.CurrentWeatherTool;
-import com.nhnacademy.recommendation.tools.EnvironmentSolutionTool;
-import com.nhnacademy.recommendation.tools.ForecastWeatherTool;
-import com.nhnacademy.recommendation.tools.SensorDataAnswerTool;
+import com.nhnacademy.recommendation.tools.general.CurrentWeatherTool;
+import com.nhnacademy.recommendation.tools.general.SearchBuildingTool;
+import com.nhnacademy.recommendation.tools.general.SearchRoomTool;
+import com.nhnacademy.recommendation.tools.routing.EnvironmentSolutionTool;
+import com.nhnacademy.recommendation.tools.general.ForecastWeatherTool;
+import com.nhnacademy.recommendation.tools.routing.GeneralDataAnswerTool;
+import com.nhnacademy.recommendation.tools.routing.SensorDataAnswerTool;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.model.ChatModel;
@@ -17,7 +20,8 @@ public class ChatClientConfig {
     @Bean
     public ChatClient routingChatClient(@Qualifier(value = "googleGenAiChatModel") ChatModel geminiModel,
                                         EnvironmentSolutionTool environmentSolutionTool,
-                                        SensorDataAnswerTool sensorDataAnswerTool) {
+                                        SensorDataAnswerTool sensorDataAnswerTool,
+                                        GeneralDataAnswerTool generalDataAnswerTool) {
         return ChatClient.builder(geminiModel)
                 .defaultSystem("""
                         당신은 사용자 질문을 적절한 전문 도구로 연결하는 라우팅 어시스턴트입니다.
@@ -36,7 +40,7 @@ public class ChatClientConfig {
                         이 서비스에서 제공할 수 없는 질문이라고 답변하세요.
 
                         """)
-                .defaultTools(environmentSolutionTool, sensorDataAnswerTool)
+                .defaultTools(environmentSolutionTool, sensorDataAnswerTool, generalDataAnswerTool)
                 .defaultAdvisors(new SimpleLoggerAdvisor())
                 .build();
     }
@@ -98,6 +102,24 @@ public class ChatClientConfig {
                         아직 조회 API 도구가 제공되지 않은 경우,
                         센서 데이터 조회 도구가 아직 연결되지 않았다고 답변하세요.
                         """)
+                .defaultAdvisors(new SimpleLoggerAdvisor())
+                .build();
+    }
+
+    @Bean
+    public ChatClient generalDataChatClient(@Qualifier(value = "googleGenAiChatModel") ChatModel geminiModel,
+                                            SearchBuildingTool searchBuildingTool,
+                                            SearchRoomTool searchRoomTool){
+        return ChatClient.builder(geminiModel)
+                .defaultSystem("""
+                        당신은 팀 구조, 팀이 관리하는 건물, 건물 내 세부 목록 등 일반적인 조회 결과를 답변하는 어시스턴트입니다.
+                        
+                        팀이 관리하는 건물, 건물 내의 강의실, 강의실 내 기기와 센서, 사용자가 구독한 강의실 등 
+                        DB에 저장된 데이터를 요구하는 질문에 다른 서비스의 API호출로 인한 데이터 제공을 통해 답변합니다.
+                        
+                        API 도구 호출 결과에 없는 수치나 사실은 생성하지 마세요.
+                        """)
+                .defaultTools(searchBuildingTool, searchRoomTool)
                 .defaultAdvisors(new SimpleLoggerAdvisor())
                 .build();
     }
