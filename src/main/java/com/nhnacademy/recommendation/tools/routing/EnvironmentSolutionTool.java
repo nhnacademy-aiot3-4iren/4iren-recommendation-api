@@ -1,4 +1,4 @@
-package com.nhnacademy.recommendation.tools;
+package com.nhnacademy.recommendation.tools.routing;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -9,24 +9,24 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-public class SensorDataAnswerTool {
+public class EnvironmentSolutionTool {
 
     private final ChatClient chatClient;
 
-    public SensorDataAnswerTool(@Qualifier("sensorDataAnswerChatClient") ChatClient chatClient) {
+    public EnvironmentSolutionTool(@Qualifier("environmentSolutionChatClient") ChatClient chatClient) {
         this.chatClient = chatClient;
     }
 
     @Tool(
-            name = "sensor_data_answer",
+            name = "environment_solution",
             description = """
-                    저장된 센서 측정값, 과거 기록, 최근값, 평균, 최대/최소,
-                    특정 기간의 통계나 추세 조회가 필요할 때 호출합니다.
+                    실내 환경, CO2, 온도, 습도, 환기, 문/창문 개방,
+                    외부 날씨를 고려한 환경관리 조언이 필요할 때 호출합니다.
                     """
     )
-    public String answerSensorDataQuestion(
+    public String answerEnvironmentQuestion(
             @ToolParam(description = "사용자의 원본 질문") String userQuestion) {
-        log.info("[Sensor Data Answer Tool] 센서 데이터 답변 생성 호출");
+        log.info("[Environment Solution Tool] 환경관리 답변 생성 호출");
 
         return chatClient.prompt()
                 .user(userQuestion)

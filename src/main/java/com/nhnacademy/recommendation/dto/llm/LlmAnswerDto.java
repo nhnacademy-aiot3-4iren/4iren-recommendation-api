@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 @Setter
 public class LlmAnswerDto {
     private String userId;
+    private Long roomId;
     private final String message;
     private final String answer;
     private final LocalDateTime requestedAt;
@@ -17,6 +18,7 @@ public class LlmAnswerDto {
 
     public LlmAnswerDto(String message, String answer, LocalDateTime requestedAt, LocalDateTime receivedAt) {
         userId = null;
+        roomId = null;
         this.message = message;
         this.answer = answer;
         this.requestedAt = requestedAt;

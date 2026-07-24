@@ -7,6 +7,7 @@ Content-Type: application/json
 
 {
   "userId": "3412",
-  "message": "지금 강의실 이산화탄소 농도가 1100ppm인데 어떡할까? 지금 외부날씨에 알맞게 조언해줘",
+  "lastMentionRoomId": 10,
+  "message": "1번팀이 관리중인 1번 강의실 정보좀",
   "requestedAt": "2026-07-21T11:20:00"
 }

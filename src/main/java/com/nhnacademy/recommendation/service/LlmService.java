@@ -14,9 +14,11 @@ import java.time.LocalDateTime;
 @Service
 public class LlmService {
     private final ChatClient chatClient;
+    private final LastMentionedRoomService lastMentionedRoomService;
 
-    public LlmService(@Qualifier("routingChatClient") ChatClient chatClient) {
+    public LlmService(@Qualifier("routingChatClient") ChatClient chatClient, LastMentionedRoomService lastMentionedRoomService) {
         this.chatClient = chatClient;
+        this.lastMentionedRoomService = lastMentionedRoomService;
     }
 
     public LlmAnswerDto answer(String headerUserId, LlmRequestDto request) {
