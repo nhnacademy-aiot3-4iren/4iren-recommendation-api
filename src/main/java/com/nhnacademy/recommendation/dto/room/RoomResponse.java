@@ -1,8 +1,9 @@
 package com.nhnacademy.recommendation.dto.room;
 
 public record RoomResponse(
-        Long id,
+        Long roomId,
         Long buildingId,
-        String roomName
+        String roomName,
+        String description
 ) {
 }

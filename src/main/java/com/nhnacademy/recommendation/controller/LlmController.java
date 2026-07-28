@@ -1,5 +1,6 @@
 package com.nhnacademy.recommendation.controller;
 
+import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.llm.LlmAnswerDto;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestDto;
 import com.nhnacademy.recommendation.service.LlmService;
@@ -21,7 +22,8 @@ public class LlmController {
 
     @PostMapping("/chat")
     public LlmAnswerDto getChatAnswer(@RequestHeader(value = "X-USER-ID", required = false) String userId,
-            @RequestBody LlmRequestDto request){
-        return llmService.answer(userId, request);
+                                      @RequestHeader(value = "X-USER-ROLE", required = false) UserRole role,
+                                      @RequestBody LlmRequestDto request) {
+        return llmService.answer(userId, role, request);
     }
 }
