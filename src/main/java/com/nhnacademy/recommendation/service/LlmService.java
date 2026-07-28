@@ -31,12 +31,12 @@ public class LlmService {
         this.llmConversationContextService = llmConversationContextService;
     }
 
-    public LlmAnswerDto answer(String headerUserId, UserRole role, LlmRequestDto request) {
+    public LlmAnswerDto answer(Long headerUserId, UserRole role, LlmRequestDto request) {
         LocalDateTime receivedAt = LocalDateTime.now();
         if (request == null || request.message() == null || request.message().isBlank()) {
             throw new InvalidMessageException();
         }
-        String userId = resolveUserId(headerUserId, request.userId());
+        Long userId = headerUserId;
         UserRole resolvedRole = role == null ? UserRole.NORMAL : role;
         LlmConversationContext conversationContext = resolveConversationContext(userId, request);
 
@@ -78,13 +78,8 @@ public class LlmService {
 
     }
 
-    private LlmConversationContext resolveConversationContext(String userId, LlmRequestDto request) {
+    private LlmConversationContext resolveConversationContext(Long userId, LlmRequestDto request) {
         LlmConversationContext context = llmConversationContextService.find(userId);
-        if (request.lastQuestion() != null || request.lastAnswer() != null) {
-            String lastQuestion = firstNonBlank(context.lastQuestion(), request.lastQuestion());
-            String lastAnswer = firstNonBlank(context.lastAnswer(), request.lastAnswer());
-            context = context.withLastExchange(lastQuestion, lastAnswer);
-        }
         if (request.lastMentionRoomId() != null) {
             context = context.withMention(new MentionedEntityDto(MentionedEntityType.ROOM, request.lastMentionRoomId(), null));
         }

@@ -3,7 +3,7 @@ package com.nhnacademy.recommendation.dto.llm;
 import com.nhnacademy.recommendation.dto.UserRole;
 
 public record LlmRequestContext(
-        String userId,
+        Long userId,
         UserRole role,
         LlmConversationContext conversationContext
 ) {

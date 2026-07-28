@@ -21,7 +21,7 @@ public class LlmController {
 //    }
 
     @PostMapping("/chat")
-    public LlmAnswerDto getChatAnswer(@RequestHeader(value = "X-USER-ID", required = false) String userId,
+    public LlmAnswerDto getChatAnswer(@RequestHeader(value = "X-USER-ID", required = false) Long userId,
                                       @RequestHeader(value = "X-USER-ROLE", required = false) UserRole role,
                                       @RequestBody LlmRequestDto request) {
         return llmService.answer(userId, role, request);
