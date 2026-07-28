@@ -1,8 +1,9 @@
 package com.nhnacademy.recommendation.dto.building;
 
 public record BuildingResponse(
-        Long id,
+        Long buildingId,
         Long teamId,
-        String buildingName
+        String buildingName,
+        String description
 ) {
 }

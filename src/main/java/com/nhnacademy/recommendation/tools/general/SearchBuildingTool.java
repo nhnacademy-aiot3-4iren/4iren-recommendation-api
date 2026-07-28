@@ -1,7 +1,13 @@
 package com.nhnacademy.recommendation.tools.general;
 
 import com.nhnacademy.recommendation.adaptor.CoreClient;
+import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
+import com.nhnacademy.recommendation.dto.building.BuildingDetailResponse;
 import com.nhnacademy.recommendation.dto.building.BuildingResponse;
+import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
+import com.nhnacademy.recommendation.dto.llm.MentionedEntityDto;
+import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
+import com.nhnacademy.recommendation.service.LlmConversationContextService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
@@ -16,6 +22,8 @@ import java.util.List;
 public class SearchBuildingTool {
 
     private final CoreClient coreClient;
+    private final LlmRequestContextHolder llmRequestContextHolder;
+    private final LlmConversationContextService llmConversationContextService;
 
 
     @Tool(
@@ -26,11 +34,22 @@ public class SearchBuildingTool {
                     현재 세부 내용은 구현이 안된 확인용 도구입니다.
                     """
     )
-    public List<BuildingResponse> getBuildingListByTeam(@ToolParam(description = "팀의 번호") Long teamId){
+    public List<BuildingResponse> getBuildingListByTeam(
+            @ToolParam(required = false, description = "팀의 번호. 현재 질문에 팀 번호가 없으면 생략하세요.") Long teamId) {
         log.info("[SearchBuildingTool] 팀의 관리대상 건물 목록 조회 호출");
         List<BuildingResponse> result = null;
-        try{
-            result = coreClient.getBuildingListByTeam(teamId).content();
+        LlmRequestContext context = llmRequestContextHolder.get();
+        Long resolvedTeamId = resolveEntityId(teamId, MentionedEntityType.TEAM);
+        if (resolvedTeamId == null) {
+            log.info("[SearchBuildingTool] 팀 번호가 없어 건물 목록 조회를 중단합니다.");
+            return List.of(new BuildingResponse(null, null, "조회 조건 부족", "팀 번호가 필요합니다. 어느 팀의 건물 목록인지 물어보세요."));
+        }
+        try {
+            result = coreClient.getBuildingListByTeam(Long.valueOf(context.userId()), context.role(), resolvedTeamId).content();
+            llmConversationContextService.saveMention(
+                    context.userId(),
+                    new MentionedEntityDto(MentionedEntityType.TEAM, resolvedTeamId, null)
+            );
         } catch (Exception e) {
             log.info("현재 구현되지 않은 도구 호출입니다. [SearchBuildingTool]");
         }
@@ -46,14 +65,70 @@ public class SearchBuildingTool {
                     테스트를 위해 유효하지 않은 데이터여도 그대로 반환하세요.
                     """
     )
-    public BuildingResponse getBuildingDetail(@ToolParam(description = "팀의 번호") Long teamId,
-                                              @ToolParam(description = "건물 번호") Long buildingId){
-        log.info("[SearchBuildingTool] 건물 상세 정보 조회 호출 Team ID: {}, Building ID: {}",teamId, buildingId);
-        try{
-            return coreClient.getBuildingDetail(teamId, buildingId);
+    public BuildingDetailResponse getBuildingDetail(
+            @ToolParam(required = false, description = "팀의 번호. 현재 질문에 팀 번호가 없으면 생략하세요.") Long teamId,
+            @ToolParam(required = false, description = "건물 번호. 현재 질문에 건물 번호가 없으면 생략하세요.") Long buildingId) {
+        LlmRequestContext context = llmRequestContextHolder.get();
+        Long resolvedTeamId = resolveEntityId(teamId, MentionedEntityType.TEAM);
+        Long resolvedBuildingId = resolveEntityId(buildingId, MentionedEntityType.BUILDING);
+        if (resolvedTeamId == null || resolvedBuildingId == null) {
+            log.info("[SearchBuildingTool] 팀 번호 또는 건물 번호가 없어 건물 상세 조회를 중단합니다.");
+            return new BuildingDetailResponse(
+                    resolvedBuildingId,
+                    resolvedTeamId,
+                    "조회 조건 부족",
+                    "팀 번호와 건물 번호가 필요합니다. 어느 팀의 어떤 건물인지 물어보세요.",
+                    null,
+                    null,
+                    null,
+                    0L,
+                    0L,
+                    0L
+            );
+        }
+
+        log.info("[SearchBuildingTool] 건물 상세 정보 조회 호출 Team ID: {}, Building ID: {}", resolvedTeamId, resolvedBuildingId);
+        try {
+            BuildingDetailResponse response = coreClient.getBuildingDetail(
+                    Long.valueOf(context.userId()),
+                    context.role(),
+                    resolvedTeamId,
+                    resolvedBuildingId
+            );
+            llmConversationContextService.saveMention(
+                    context.userId(),
+                    new MentionedEntityDto(MentionedEntityType.TEAM, resolvedTeamId, null)
+            );
+            llmConversationContextService.saveMention(
+                    context.userId(),
+                    new MentionedEntityDto(MentionedEntityType.BUILDING, response.buildingId(), response.buildingName())
+            );
+            return response;
         } catch (Exception e) {
             log.info("현재 구현되지 않은 도구 호출입니다. [SearchBuildingTool]");
-            return new BuildingResponse(teamId,buildingId,"오류로 발생한 건물");
+            return new BuildingDetailResponse(
+                    resolvedBuildingId,
+                    resolvedTeamId,
+                    "조회 조건 부족",
+                    "팀 번호와 건물 번호가 필요합니다. 어느 팀의 어떤 건물인지 물어보세요.",
+                    null,
+                    null,
+                    null,
+                    0L,
+                    0L,
+                    0L
+            );
         }
+    }
+
+    private Long resolveEntityId(Long explicitId, MentionedEntityType type) {
+        if (explicitId != null) {
+            return explicitId;
+        }
+        LlmRequestContext context = llmRequestContextHolder.get();
+        return context.conversationContext()
+                .findRecentEntityId(type)
+                .or(() -> llmConversationContextService.find(context.userId()).findRecentEntityId(type))
+                .orElse(null);
     }
 }
