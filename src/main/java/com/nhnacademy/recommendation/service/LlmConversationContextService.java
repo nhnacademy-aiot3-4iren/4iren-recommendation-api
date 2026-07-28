@@ -22,7 +22,7 @@ public class LlmConversationContextService {
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
 
-    public LlmConversationContext find(String userId) {
+    public LlmConversationContext find(Long userId) {
         String value = stringRedisTemplate.opsForValue().get(key(userId));
         if (value == null || value.isBlank()) {
             return LlmConversationContext.empty();
@@ -36,15 +36,15 @@ public class LlmConversationContextService {
         }
     }
 
-    public void saveLastExchange(String userId, String question, String answer) {
+    public void saveLastExchange(Long userId, String question, String answer) {
         save(userId, find(userId).withLastExchange(question, answer));
     }
 
-    public void saveMention(String userId, MentionedEntityDto mention) {
+    public void saveMention(Long userId, MentionedEntityDto mention) {
         save(userId, find(userId).withMention(mention));
     }
 
-    public void save(String userId, LlmConversationContext context) {
+    public void save(Long userId, LlmConversationContext context) {
         try {
             stringRedisTemplate.opsForValue().set(key(userId), objectMapper.writeValueAsString(context), TTL);
         } catch (JsonProcessingException e) {
@@ -52,7 +52,7 @@ public class LlmConversationContextService {
         }
     }
 
-    private String key(String userId) {
+    private String key(Long userId) {
         return PREFIX + userId;
     }
 }

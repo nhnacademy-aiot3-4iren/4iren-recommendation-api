@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 public class LlmAnswerDto {
-    private String userId;
+    private Long userId;
     private Long roomId;
     private final String message;
     private final String answer;

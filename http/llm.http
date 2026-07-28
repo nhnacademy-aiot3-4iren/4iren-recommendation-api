@@ -8,10 +8,7 @@ X-User-Id: 1
 X-User-Role: ADMIN
 
 {
-  "userId": "1",
   "lastMentionRoomId": 10,
-  "message": "첫번쨰 건물 상세정보좀",
-  "lastQuestion": "3번팀이 관리 중인 건물 목록좀",
-  "lastAnswer":  "3번 팀이 관리 중인 건물 목록은 다음과 같습니다.\n\n*   **테스트 건물** (건물 번호: 5)\n*   **테스트 건물2** (건물 번호: 6)",
+  "message": "3번팀 건물 목록",
   "requestedAt": "2026-07-21T11:20:00"
 }
