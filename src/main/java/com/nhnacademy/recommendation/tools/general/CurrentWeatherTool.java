@@ -31,8 +31,13 @@ public class CurrentWeatherTool {
                     """
     )
     public KmaCurrentWeatherResponseDto getCurrentWeather(@ToolParam(description = "정보를 조회할 지역 이름") String region){
+        long start = System.currentTimeMillis();
         log.info("[Current Weather Tool] 실시간 날씨 조회 호출");
 
-        return coreClient.getNcst(region).getBody();
+        try {
+            return coreClient.getNcst(region).getBody();
+        } finally {
+            log.info("[Timing][Tool] current_weather region={} elapsed={}ms", region, System.currentTimeMillis() - start);
+        }
     }
 }

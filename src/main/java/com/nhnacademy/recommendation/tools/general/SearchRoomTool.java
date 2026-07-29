@@ -24,14 +24,16 @@ public class SearchRoomTool {
     private final LlmConversationContextService llmConversationContextService;
 
     @Tool(
-            name = "search_room_list_by_buildingId",
+            name = "search_room_list",
             description = """
-                    Team ID와 Building ID를 통해 건물 내 강의실 리스트를 조회합니다.
+                    팀 ID와 건물 ID로 건물 내 강의실 목록을 조회합니다.
+                    예: "3번팀 5번 건물 강의실 목록", "그 건물 강의실 보여줘"라는 질문에는 반드시 이 도구를 호출하세요.
                     """
     )
     public List<RoomResponse> getRoomListByBuilding(
             @ToolParam(required = false, description = "팀의 번호. 현재 질문에 팀 번호가 없으면 생략하세요.") Long teamId,
             @ToolParam(required = false, description = "건물 번호. 현재 질문에 건물 번호가 없으면 생략하세요.") Long buildingId) {
+        long start = System.currentTimeMillis();
         LlmRequestContext context = llmRequestContextHolder.get();
         Long resolvedTeamId = resolveEntityId(teamId, MentionedEntityType.TEAM);
         Long resolvedBuildingId = resolveEntityId(buildingId, MentionedEntityType.BUILDING);
@@ -55,19 +57,24 @@ public class SearchRoomTool {
             );
         } catch (Exception e) {
             log.info("현재 구현되지 않은 도구 호출입니다. [SearchRoomTool]");
+        } finally {
+            log.info("[Timing][Tool] search_room_list teamId={} buildingId={} elapsed={}ms",
+                    resolvedTeamId, resolvedBuildingId, System.currentTimeMillis() - start);
         }
         return result;
     }
 
     @Tool(
-            name = "search_room_detail_by_roomId",
+            name = "search_room_detail",
             description = """
-                    TeamId와 RoomId를 통해 해당하는 강의실 세부 정보를 조회합니다.
+                    팀 ID와 강의실 ID로 강의실 상세 정보를 조회합니다.
+                    예: "3번팀 10번 강의실 상세", "그 강의실 정보 보여줘"라는 질문에는 반드시 이 도구를 호출하세요.
                     """
     )
     public RoomResponse getRoomDetail(
             @ToolParam(required = false, description = "팀의 번호. 현재 질문에 팀 번호가 없으면 생략하세요.") Long teamId,
             @ToolParam(required = false, description = "강의실 번호. 현재 질문에 강의실 번호가 없으면 생략하세요.") Long roomId) {
+        long start = System.currentTimeMillis();
         LlmRequestContext context = llmRequestContextHolder.get();
         Long resolvedTeamId = resolveEntityId(teamId, MentionedEntityType.TEAM);
         Long resolvedRoomId = resolveEntityId(roomId, MentionedEntityType.ROOM);
@@ -100,6 +107,9 @@ public class SearchRoomTool {
         } catch (Exception e) {
             log.info("현재 구현되지 않은 도구 호출입니다. [SearchBuildingTool]");
             return new RoomResponse(resolvedRoomId, 1L, "오류로 발생한 강의실", "오류로 발생한 강의실 설명");
+        } finally {
+            log.info("[Timing][Tool] search_room_detail teamId={} roomId={} elapsed={}ms",
+                    resolvedTeamId, resolvedRoomId, System.currentTimeMillis() - start);
         }
     }
 
