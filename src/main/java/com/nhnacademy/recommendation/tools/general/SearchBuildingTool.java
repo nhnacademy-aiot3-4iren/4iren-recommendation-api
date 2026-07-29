@@ -27,15 +27,15 @@ public class SearchBuildingTool {
 
 
     @Tool(
-            name = "search_building_list_by_teamId",
+            name = "search_building_list",
             description = """
-                    팀 아이디로 팀이 현재 관리중인 건물리스트를 조회합니다.
-                    
-                    현재 세부 내용은 구현이 안된 확인용 도구입니다.
+                    팀 ID로 사용자가 접근 가능한 건물 목록을 조회합니다.
+                    예: "3번팀 건물 목록", "3번 팀이 관리하는 건물 보여줘"라는 질문에는 반드시 이 도구를 호출하세요.
                     """
     )
     public List<BuildingResponse> getBuildingListByTeam(
             @ToolParam(required = false, description = "팀의 번호. 현재 질문에 팀 번호가 없으면 생략하세요.") Long teamId) {
+        long start = System.currentTimeMillis();
         log.info("[SearchBuildingTool] 팀의 관리대상 건물 목록 조회 호출");
         List<BuildingResponse> result = null;
         LlmRequestContext context = llmRequestContextHolder.get();
@@ -52,22 +52,23 @@ public class SearchBuildingTool {
             );
         } catch (Exception e) {
             log.info("현재 구현되지 않은 도구 호출입니다. [SearchBuildingTool]");
+        } finally {
+            log.info("[Timing][Tool] search_building_list teamId={} elapsed={}ms", resolvedTeamId, System.currentTimeMillis() - start);
         }
         return result;
     }
 
     @Tool(
-            name = "search_building_detail_by_teamId_buildingId",
+            name = "search_building_detail",
             description = """
-                    팀에서 관리중인 건물 중 건물번호를 통해 세부 정보를 조회합니다.
-                    
-                    현재는 내부 기능이 구현되지 않아 임의의 데이터를 생성하여 제공합니다.
-                    테스트를 위해 유효하지 않은 데이터여도 그대로 반환하세요.
+                    팀 ID와 건물 ID로 건물 상세 정보를 조회합니다.
+                    예: "3번팀 5번 건물 상세", "그 건물 상세정보"라는 질문에는 반드시 이 도구를 호출하세요.
                     """
     )
     public BuildingDetailResponse getBuildingDetail(
             @ToolParam(required = false, description = "팀의 번호. 현재 질문에 팀 번호가 없으면 생략하세요.") Long teamId,
             @ToolParam(required = false, description = "건물 번호. 현재 질문에 건물 번호가 없으면 생략하세요.") Long buildingId) {
+        long start = System.currentTimeMillis();
         LlmRequestContext context = llmRequestContextHolder.get();
         Long resolvedTeamId = resolveEntityId(teamId, MentionedEntityType.TEAM);
         Long resolvedBuildingId = resolveEntityId(buildingId, MentionedEntityType.BUILDING);
@@ -118,6 +119,9 @@ public class SearchBuildingTool {
                     0L,
                     0L
             );
+        } finally {
+            log.info("[Timing][Tool] search_building_detail teamId={} buildingId={} elapsed={}ms",
+                    resolvedTeamId, resolvedBuildingId, System.currentTimeMillis() - start);
         }
     }
 

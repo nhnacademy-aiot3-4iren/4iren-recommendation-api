@@ -1,13 +1,10 @@
 package com.nhnacademy.recommendation.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
 import com.nhnacademy.recommendation.dto.UserRole;
-import com.nhnacademy.recommendation.dto.llm.LlmConversationContext;
-import com.nhnacademy.recommendation.dto.llm.LlmAnswerDto;
-import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
-import com.nhnacademy.recommendation.dto.llm.LlmRequestDto;
-import com.nhnacademy.recommendation.dto.llm.MentionedEntityDto;
-import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
+import com.nhnacademy.recommendation.dto.llm.*;
 import com.nhnacademy.recommendation.exception.InvalidMessageException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -15,6 +12,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -22,16 +20,20 @@ public class LlmService {
     private final ChatClient chatClient;
     private final LlmRequestContextHolder llmRequestContextHolder;
     private final LlmConversationContextService llmConversationContextService;
+    private final ObjectMapper objectMapper;
 
     public LlmService(@Qualifier("routingChatClient") ChatClient chatClient,
                       LlmRequestContextHolder llmRequestContextHolder,
-                      LlmConversationContextService llmConversationContextService) {
+                      LlmConversationContextService llmConversationContextService,
+                      ObjectMapper objectMapper) {
         this.chatClient = chatClient;
         this.llmRequestContextHolder = llmRequestContextHolder;
         this.llmConversationContextService = llmConversationContextService;
+        this.objectMapper = objectMapper;
     }
 
-    public LlmAnswerDto answer(Long headerUserId, UserRole role, LlmRequestDto request) {
+    public LlmResponseDto answer(Long headerUserId, UserRole role, LlmRequestDto request) {
+        long requestStart = System.currentTimeMillis();
         LocalDateTime receivedAt = LocalDateTime.now();
         if (request == null || request.message() == null || request.message().isBlank()) {
             throw new InvalidMessageException();
@@ -60,22 +62,62 @@ public class LlmService {
             );
 
             log.info("요청한 메시지: {}", userPrompt);
-            String answer = chatClient.prompt()
+            long llmStart = System.currentTimeMillis();
+            String rawAnswer = chatClient.prompt()
                     .user(userPrompt)
                     .call()
                     .content();
+            log.info("[Timing][LLM] routingChatClient elapsed={}ms", elapsed(llmStart));
 
+            long parseStart = System.currentTimeMillis();
+            AnswerDto answer = parseAnswer(rawAnswer);
+            log.info("[Timing][LLM] AnswerDto parse elapsed={}ms", elapsed(parseStart));
+
+            long redisStart = System.currentTimeMillis();
             LlmConversationContext latestContext = llmConversationContextService.find(userId);
-            llmConversationContextService.save(userId, latestContext.withLastExchange(request.message(), answer));
+            llmConversationContextService.save(userId, latestContext.withLastExchange(request.message(), answer.answer()));
+            log.info("[Timing][Redis] save last exchange elapsed={}ms", elapsed(redisStart));
 
-            LlmAnswerDto answerDto = new LlmAnswerDto(request.message(), answer, request.requestedAt(), receivedAt);
+            LlmResponseDto answerDto = new LlmResponseDto(request.message(), answer, request.requestedAt(), receivedAt);
             answerDto.setUserId(userId);
+            log.info("[Timing][Request] total elapsed={}ms", elapsed(requestStart));
             return answerDto;
         } finally {
             llmRequestContextHolder.clear();
         }
 
 
+    }
+
+    private AnswerDto parseAnswer(String rawAnswer) {
+        if (rawAnswer == null || rawAnswer.isBlank()) {
+            return new AnswerDto("답변을 생성하지 못했습니다.", List.of());
+        }
+
+        String json = stripMarkdownCodeFence(rawAnswer.trim());
+        try {
+            AnswerDto answer = objectMapper.readValue(json, AnswerDto.class);
+            return new AnswerDto(
+                    firstNonBlank(answer.answer(), rawAnswer),
+                    answer.options() == null ? List.of() : answer.options()
+            );
+        } catch (JsonProcessingException e) {
+            log.warn("AnswerDto 파싱 실패. 문자열 답변으로 처리합니다. rawAnswer={}", rawAnswer, e);
+            return new AnswerDto(rawAnswer, List.of());
+        }
+    }
+
+    private String stripMarkdownCodeFence(String content) {
+        if (!content.startsWith("```")) {
+            return content;
+        }
+
+        String stripped = content.replaceFirst("^```(?:json)?\\s*", "");
+        return stripped.replaceFirst("\\s*```$", "").trim();
+    }
+
+    private long elapsed(long startMillis) {
+        return System.currentTimeMillis() - startMillis;
     }
 
     private LlmConversationContext resolveConversationContext(Long userId, LlmRequestDto request) {
@@ -120,24 +162,5 @@ public class LlmService {
 
     private String firstNonBlank(String preferred, String fallback) {
         return preferred == null || preferred.isBlank() ? fallback : preferred;
-    }
-
-    private String resolveUserId(String headerUserId, String bodyUserId) {
-        boolean hasHeaderUserId = headerUserId != null && !headerUserId.isBlank();
-        boolean hasBodyUserId = bodyUserId != null && !bodyUserId.isBlank();
-
-        if (hasHeaderUserId && hasBodyUserId && !headerUserId.equals(bodyUserId)) {
-            throw new IllegalArgumentException("헤더와 본문의 사용자 ID가 일치하지 않습니다.");
-        }
-
-        if (hasHeaderUserId) {
-            return headerUserId;
-        }
-
-        if (hasBodyUserId) {
-            return bodyUserId;
-        }
-
-        throw new IllegalArgumentException("사용자 ID가 필요합니다.");
     }
 }

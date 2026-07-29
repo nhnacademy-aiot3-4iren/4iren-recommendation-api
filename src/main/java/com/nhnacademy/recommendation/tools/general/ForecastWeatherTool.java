@@ -23,9 +23,14 @@ public class ForecastWeatherTool {
                     반환되는 정보에는 기온, 습도, 강수 형태, 강수량, 풍속 등이 포함됩니다.
                     """)
     public KmaForecastWeatherResponseDto getTodayForecastWeather(@ToolParam(description = "정보를 조회할 지역 이름") String region) {
+        long start = System.currentTimeMillis();
         log.info("[Forecast Weather Tool] 오늘 날씨 예보 호출");
 
-        return coreClient.getFcst(region).getBody();
+        try {
+            return coreClient.getFcst(region).getBody();
+        } finally {
+            log.info("[Timing][Tool] forecast_weather region={} elapsed={}ms", region, System.currentTimeMillis() - start);
+        }
 
     }
 
