@@ -2,6 +2,8 @@ package com.nhnacademy.recommendation.tools.general;
 
 import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.dto.kma.KmaCurrentWeatherResponseDto;
+import com.nhnacademy.recommendation.dto.tool.ToolResult;
+import com.nhnacademy.recommendation.util.TimingLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
@@ -30,14 +32,15 @@ public class CurrentWeatherTool {
                             생성하거나 추측해서는 안 됩니다.
                     """
     )
-    public KmaCurrentWeatherResponseDto getCurrentWeather(@ToolParam(description = "정보를 조회할 지역 이름") String region){
-        long start = System.currentTimeMillis();
+    public ToolResult<KmaCurrentWeatherResponseDto> getCurrentWeather(@ToolParam(description = "정보를 조회할 지역 이름") String region){
         log.info("[Current Weather Tool] 실시간 날씨 조회 호출");
-
-        try {
-            return coreClient.getNcst(region).getBody();
-        } finally {
-            log.info("[Timing][Tool] current_weather region={} elapsed={}ms", region, System.currentTimeMillis() - start);
-        }
+        return TimingLog.measure(log, "[Timing][Tool] current_weather region=" + region, () -> {
+            try {
+                return ToolResult.success(coreClient.getNcst(region).getBody());
+            } catch (Exception e) {
+                log.warn("[CurrentWeatherTool] 현재 날씨 조회 실패. region={}", region, e);
+                return ToolResult.failure("CURRENT_WEATHER_QUERY_FAILED", "현재 날씨를 조회하지 못했습니다.");
+            }
+        });
     }
 }

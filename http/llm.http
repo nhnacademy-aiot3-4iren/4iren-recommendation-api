@@ -8,6 +8,6 @@ X-User-Id: 1
 X-User-Role: ADMIN
 
 {
-  "message": "7번 강의실 상세 정보",
-  "requestedAt": "2026-07-21T11:20:00"
+  "message": "첫번째 팀이 관리하는 건물",
+  "requestedAt": "2026-07-30T11:20:00"
 }

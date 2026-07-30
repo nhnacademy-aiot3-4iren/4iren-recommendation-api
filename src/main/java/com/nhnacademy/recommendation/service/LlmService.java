@@ -6,6 +6,7 @@ import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
 import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.llm.*;
 import com.nhnacademy.recommendation.exception.InvalidMessageException;
+import com.nhnacademy.recommendation.util.TimingLog;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -33,57 +34,53 @@ public class LlmService {
     }
 
     public LlmResponseDto answer(Long headerUserId, UserRole role, LlmRequestDto request) {
-        long requestStart = System.currentTimeMillis();
-        LocalDateTime receivedAt = LocalDateTime.now();
-        if (request == null || request.message() == null || request.message().isBlank()) {
-            throw new InvalidMessageException();
-        }
-        Long userId = headerUserId;
-        UserRole resolvedRole = role == null ? UserRole.NORMAL : role;
-        LlmConversationContext conversationContext = resolveConversationContext(userId, request);
+        try (TimingLog.Timer ignored = TimingLog.start(log, "[Timing][Request] total")) {
+            LocalDateTime receivedAt = LocalDateTime.now();
+            if (request == null || request.message() == null || request.message().isBlank()) {
+                throw new InvalidMessageException();
+            }
+            Long userId = headerUserId;
+            UserRole resolvedRole = role == null ? UserRole.NORMAL : role;
+            LlmConversationContext conversationContext = resolveConversationContext(userId, request);
 
-        log.info("User ID: {}", userId);
-        try {
-            llmConversationContextService.save(userId, conversationContext);
-            llmRequestContextHolder.set(new LlmRequestContext(userId, resolvedRole, conversationContext));
-            String userPrompt = """
-                    최근 언급 엔티티:
-                    %s
-                    
-                    최근 대화:
-                    %s
-                    
-                    현재 질문:
-                    %s
-                    """.formatted(
-                    formatRecentMentions(conversationContext),
-                    formatRecentConversation(conversationContext),
-                    request.message()
-            );
+            log.info("User ID: {}", userId);
+            try {
+                llmConversationContextService.save(userId, conversationContext);
+                llmRequestContextHolder.set(new LlmRequestContext(userId, resolvedRole, conversationContext));
+                String userPrompt = """
+                        최근 언급 엔티티:
+                        %s
+                        
+                        최근 대화:
+                        %s
+                        
+                        현재 질문:
+                        %s
+                        """.formatted(
+                        formatRecentMentions(conversationContext),
+                        formatRecentConversation(conversationContext),
+                        request.message()
+                );
 
-            log.info("요청한 메시지: {}", userPrompt);
-            long llmStart = System.currentTimeMillis();
-            String rawAnswer = chatClient.prompt()
-                    .user(userPrompt)
-                    .call()
-                    .content();
-            log.info("[Timing][LLM] routingChatClient elapsed={}ms", elapsed(llmStart));
+                log.info("요청한 메시지: {}", userPrompt);
+                String rawAnswer = TimingLog.measure(log, "[Timing][LLM] routingChatClient", () -> chatClient.prompt()
+                        .user(userPrompt)
+                        .call()
+                        .content());
 
-            long parseStart = System.currentTimeMillis();
-            AnswerDto answer = parseAnswer(rawAnswer);
-            log.info("[Timing][LLM] AnswerDto parse elapsed={}ms", elapsed(parseStart));
+                AnswerDto answer = TimingLog.measure(log, "[Timing][LLM] AnswerDto parse", () -> parseAnswer(rawAnswer));
 
-            long redisStart = System.currentTimeMillis();
-            LlmConversationContext latestContext = llmConversationContextService.find(userId);
-            llmConversationContextService.save(userId, latestContext.withLastExchange(request.message(), answer.answer()));
-            log.info("[Timing][Redis] save last exchange elapsed={}ms", elapsed(redisStart));
+                TimingLog.run(log, "[Timing][Redis] save last exchange", () -> {
+                    LlmConversationContext latestContext = llmConversationContextService.find(userId);
+                    llmConversationContextService.save(userId, latestContext.withLastExchange(request.message(), answer.answer()));
+                });
 
-            LlmResponseDto answerDto = new LlmResponseDto(request.message(), answer, request.requestedAt(), receivedAt);
-            answerDto.setUserId(userId);
-            log.info("[Timing][Request] total elapsed={}ms", elapsed(requestStart));
-            return answerDto;
-        } finally {
-            llmRequestContextHolder.clear();
+                LlmResponseDto answerDto = new LlmResponseDto(request.message(), answer, request.requestedAt(), receivedAt);
+                answerDto.setUserId(userId);
+                return answerDto;
+            } finally {
+                llmRequestContextHolder.clear();
+            }
         }
 
 
@@ -114,10 +111,6 @@ public class LlmService {
 
         String stripped = content.replaceFirst("^```(?:json)?\\s*", "");
         return stripped.replaceFirst("\\s*```$", "").trim();
-    }
-
-    private long elapsed(long startMillis) {
-        return System.currentTimeMillis() - startMillis;
     }
 
     private LlmConversationContext resolveConversationContext(Long userId, LlmRequestDto request) {
