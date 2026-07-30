@@ -1,4 +1,4 @@
-name: Account Server CI/CD
+name: Recommendation Server CI/CD
 
 # 스크립트 실행 시기
 on:
@@ -12,7 +12,7 @@ permissions:
 
 # 설정값
 env:
-  IMAGE_NAME: "team4-recommendation"
+  IMAGE_NAME: "team4-recommendation람"
   DOCKER_DIR: "/home/aiot3/aiot4-team4/app"
 
 jobs:
