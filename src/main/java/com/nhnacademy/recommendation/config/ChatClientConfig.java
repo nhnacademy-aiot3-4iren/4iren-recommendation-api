@@ -1,9 +1,6 @@
 package com.nhnacademy.recommendation.config;
 
-import com.nhnacademy.recommendation.tools.general.CurrentWeatherTool;
-import com.nhnacademy.recommendation.tools.general.ForecastWeatherTool;
-import com.nhnacademy.recommendation.tools.general.SearchBuildingTool;
-import com.nhnacademy.recommendation.tools.general.SearchRoomTool;
+import com.nhnacademy.recommendation.tools.general.*;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.model.ChatModel;
@@ -19,7 +16,8 @@ public class ChatClientConfig {
                                         CurrentWeatherTool currentWeatherTool,
                                         ForecastWeatherTool forecastWeatherTool,
                                         SearchBuildingTool searchBuildingTool,
-                                        SearchRoomTool searchRoomTool) {
+                                        SearchRoomTool searchRoomTool,
+                                        SearchTeamTool searchTeamTool) {
         return ChatClient.builder(geminiModel)
                 .defaultSystem("""
                         당신은 강의실 환경, 날씨, 팀/건물/강의실 조회를 돕는 어시스턴트입니다.
@@ -42,6 +40,8 @@ public class ChatClientConfig {
                         건물 내 강의실 목록이 필요하면 반드시 search_room_list 도구를 호출하세요.
                         
                         강의실 상세 정보가 필요하면 반드시 search_room_detail 도구를 호출하세요.
+                        
+                        현재 사용자가 가입한 팀 목록이 필요하면 반드시 search_team_list 도구를 호출하세요.
                         
                         예시:
                         - "3번팀 건물 목록" -> search_building_list 도구를 teamId=3으로 호출하세요.
@@ -79,7 +79,10 @@ public class ChatClientConfig {
                         
                         도구 결과에 없는 수치나 사실은 생성하지 마세요.
                         
-                        도구가 조회 조건 부족을 반환하면 필요한 팀, 건물, 강의실 정보를 사용자에게 물어보세요.
+                        모든 도구 결과는 success, code, message, data 형식으로 반환됩니다.
+                        success가 true이면 data를 근거로 답변하세요.
+                        success가 false이면 data가 없으므로 값을 추측하지 말고 message를 바탕으로 사용자에게
+                        필요한 정보를 요청하거나 조회 실패를 안내하세요.
                         
                         최종 응답은 다음 JSON 형식으로 작성하세요.
                         {
@@ -98,7 +101,7 @@ public class ChatClientConfig {
                         
                         위 두 경우가 아니면 options는 반드시 빈 배열로 작성하세요.
                         """)
-                .defaultTools(currentWeatherTool, forecastWeatherTool, searchBuildingTool, searchRoomTool)
+                .defaultTools(currentWeatherTool, forecastWeatherTool, searchBuildingTool, searchRoomTool, searchTeamTool)
                 .defaultAdvisors(new SimpleLoggerAdvisor())
                 .build();
     }
