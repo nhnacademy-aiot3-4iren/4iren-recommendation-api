@@ -8,7 +8,6 @@ X-User-Id: 1
 X-User-Role: ADMIN
 
 {
-  "lastMentionRoomId": 10,
-  "message": "오늘 날씨 어때?",
+  "message": "7번 강의실 상세 정보",
   "requestedAt": "2026-07-21T11:20:00"
 }

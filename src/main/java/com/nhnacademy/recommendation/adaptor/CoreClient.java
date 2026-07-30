@@ -7,6 +7,7 @@ import com.nhnacademy.recommendation.dto.building.BuildingResponse;
 import com.nhnacademy.recommendation.dto.kma.KmaCurrentWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.room.RoomResponse;
+import com.nhnacademy.recommendation.dto.team.TeamResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,10 +35,14 @@ public interface CoreClient {
 
     /// 건물 내 강의실 리스트 조회
     @GetMapping("/api/teams/{teamId}/buildings/{buildingId}/rooms")
-    PageResponse<RoomResponse> getRoomListByBuilding(@PathVariable Long teamId, @PathVariable Long buildingId);
+    PageResponse<RoomResponse> getRoomListByBuilding(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable Long teamId, @PathVariable Long buildingId);
 
     /// 강의실 세부 정보 조회
     @GetMapping("/api/teams/{teamId}/rooms/{roomId}")
-    RoomResponse getRoomDetail(@PathVariable Long teamId, @PathVariable Long roomId);
+    RoomResponse getRoomDetail(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable Long teamId, @PathVariable Long roomId);
+
+    /// 사용자의 팀 목록 조회
+    @GetMapping("/api/teams")
+    PageResponse<TeamResponse> getTeamsByUser(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role);
 
 }
