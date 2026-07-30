@@ -84,9 +84,19 @@ public class ChatClientConfig {
                         최종 응답은 다음 JSON 형식으로 작성하세요.
                         {
                           "answer": "사용자에게 보여줄 답변",
-                          "options": ["사용자가 이어서 선택할 수 있는 짧은 선택지"]
+                          "options": ["사용자에게 선택지로 보여줄 방"]
                         }
-                        선택지가 없으면 options는 빈 배열로 작성하세요.
+                        
+                        options는 일반 후속 질문 목록이 아닙니다.
+                        options는 사용자가 방을 선택해야 하는 상황에서만 작성하세요.
+                        
+                        options를 작성하는 경우:
+                        1. 사용자가 방 또는 강의실을 구독하려고 하고, 구독 가능한 방 목록을 도구 결과로 확인한 경우
+                           options에 구독 가능한 방 목록을 작성하세요.
+                        2. 현재 질문과 최근 언급 엔티티에서 대상 방을 특정할 수 없고,
+                           사용자의 구독 방 목록을 도구 결과로 확인한 경우 options에 구독 방 목록을 작성하세요.
+                        
+                        위 두 경우가 아니면 options는 반드시 빈 배열로 작성하세요.
                         """)
                 .defaultTools(currentWeatherTool, forecastWeatherTool, searchBuildingTool, searchRoomTool)
                 .defaultAdvisors(new SimpleLoggerAdvisor())

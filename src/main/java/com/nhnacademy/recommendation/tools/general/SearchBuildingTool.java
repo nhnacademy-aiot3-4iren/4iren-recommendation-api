@@ -5,9 +5,9 @@ import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
 import com.nhnacademy.recommendation.dto.building.BuildingDetailResponse;
 import com.nhnacademy.recommendation.dto.building.BuildingResponse;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
-import com.nhnacademy.recommendation.dto.llm.MentionedEntityDto;
 import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
 import com.nhnacademy.recommendation.service.LlmConversationContextService;
+import com.nhnacademy.recommendation.service.MentionedEntityResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
@@ -24,6 +24,7 @@ public class SearchBuildingTool {
     private final CoreClient coreClient;
     private final LlmRequestContextHolder llmRequestContextHolder;
     private final LlmConversationContextService llmConversationContextService;
+    private final MentionedEntityResolver mentionedEntityResolver;
 
 
     @Tool(
@@ -39,17 +40,14 @@ public class SearchBuildingTool {
         log.info("[SearchBuildingTool] 팀의 관리대상 건물 목록 조회 호출");
         List<BuildingResponse> result = null;
         LlmRequestContext context = llmRequestContextHolder.get();
-        Long resolvedTeamId = resolveEntityId(teamId, MentionedEntityType.TEAM);
+        Long resolvedTeamId = mentionedEntityResolver.resolve(teamId, MentionedEntityType.TEAM);
         if (resolvedTeamId == null) {
             log.info("[SearchBuildingTool] 팀 번호가 없어 건물 목록 조회를 중단합니다.");
             return List.of(new BuildingResponse(null, null, "조회 조건 부족", "팀 번호가 필요합니다. 어느 팀의 건물 목록인지 물어보세요."));
         }
         try {
             result = coreClient.getBuildingListByTeam(Long.valueOf(context.userId()), context.role(), resolvedTeamId).content();
-            llmConversationContextService.saveMention(
-                    context.userId(),
-                    new MentionedEntityDto(MentionedEntityType.TEAM, resolvedTeamId, null)
-            );
+            llmConversationContextService.saveBuildingListMentions(context.userId(), resolvedTeamId);
         } catch (Exception e) {
             log.info("현재 구현되지 않은 도구 호출입니다. [SearchBuildingTool]");
         } finally {
@@ -70,8 +68,8 @@ public class SearchBuildingTool {
             @ToolParam(required = false, description = "건물 번호. 현재 질문에 건물 번호가 없으면 생략하세요.") Long buildingId) {
         long start = System.currentTimeMillis();
         LlmRequestContext context = llmRequestContextHolder.get();
-        Long resolvedTeamId = resolveEntityId(teamId, MentionedEntityType.TEAM);
-        Long resolvedBuildingId = resolveEntityId(buildingId, MentionedEntityType.BUILDING);
+        Long resolvedTeamId = mentionedEntityResolver.resolve(teamId, MentionedEntityType.TEAM);
+        Long resolvedBuildingId = mentionedEntityResolver.resolve(buildingId, MentionedEntityType.BUILDING);
         if (resolvedTeamId == null || resolvedBuildingId == null) {
             log.info("[SearchBuildingTool] 팀 번호 또는 건물 번호가 없어 건물 상세 조회를 중단합니다.");
             return new BuildingDetailResponse(
@@ -96,14 +94,7 @@ public class SearchBuildingTool {
                     resolvedTeamId,
                     resolvedBuildingId
             );
-            llmConversationContextService.saveMention(
-                    context.userId(),
-                    new MentionedEntityDto(MentionedEntityType.TEAM, resolvedTeamId, null)
-            );
-            llmConversationContextService.saveMention(
-                    context.userId(),
-                    new MentionedEntityDto(MentionedEntityType.BUILDING, response.buildingId(), response.buildingName())
-            );
+            llmConversationContextService.saveBuildingDetailMentions(context.userId(), resolvedTeamId, response);
             return response;
         } catch (Exception e) {
             log.info("현재 구현되지 않은 도구 호출입니다. [SearchBuildingTool]");
@@ -125,14 +116,4 @@ public class SearchBuildingTool {
         }
     }
 
-    private Long resolveEntityId(Long explicitId, MentionedEntityType type) {
-        if (explicitId != null) {
-            return explicitId;
-        }
-        LlmRequestContext context = llmRequestContextHolder.get();
-        return context.conversationContext()
-                .findRecentEntityId(type)
-                .or(() -> llmConversationContextService.find(context.userId()).findRecentEntityId(type))
-                .orElse(null);
-    }
 }

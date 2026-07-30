@@ -3,10 +3,10 @@ package com.nhnacademy.recommendation.tools.general;
 import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
-import com.nhnacademy.recommendation.dto.llm.MentionedEntityDto;
 import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
 import com.nhnacademy.recommendation.dto.room.RoomResponse;
 import com.nhnacademy.recommendation.service.LlmConversationContextService;
+import com.nhnacademy.recommendation.service.MentionedEntityResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
@@ -22,6 +22,7 @@ public class SearchRoomTool {
     private final CoreClient coreClient;
     private final LlmRequestContextHolder llmRequestContextHolder;
     private final LlmConversationContextService llmConversationContextService;
+    private final MentionedEntityResolver mentionedEntityResolver;
 
     @Tool(
             name = "search_room_list",
@@ -35,8 +36,8 @@ public class SearchRoomTool {
             @ToolParam(required = false, description = "건물 번호. 현재 질문에 건물 번호가 없으면 생략하세요.") Long buildingId) {
         long start = System.currentTimeMillis();
         LlmRequestContext context = llmRequestContextHolder.get();
-        Long resolvedTeamId = resolveEntityId(teamId, MentionedEntityType.TEAM);
-        Long resolvedBuildingId = resolveEntityId(buildingId, MentionedEntityType.BUILDING);
+        Long resolvedTeamId = mentionedEntityResolver.resolve(teamId, MentionedEntityType.TEAM);
+        Long resolvedBuildingId = mentionedEntityResolver.resolve(buildingId, MentionedEntityType.BUILDING);
         if (resolvedTeamId == null || resolvedBuildingId == null) {
             log.info("[SearchRoomTool] 팀 번호 또는 건물 번호가 없어 강의실 목록 조회를 중단합니다.");
             return List.of(new RoomResponse(null, resolvedBuildingId, "조회 조건 부족", "팀 번호와 건물 번호가 필요합니다. 어느 팀의 어떤 건물인지 물어보세요."));
@@ -46,15 +47,8 @@ public class SearchRoomTool {
 
         List<RoomResponse> result = null;
         try{
-            result = coreClient.getRoomListByBuilding(resolvedTeamId, resolvedBuildingId).content();
-            llmConversationContextService.saveMention(
-                    context.userId(),
-                    new MentionedEntityDto(MentionedEntityType.TEAM, resolvedTeamId, null)
-            );
-            llmConversationContextService.saveMention(
-                    context.userId(),
-                    new MentionedEntityDto(MentionedEntityType.BUILDING, resolvedBuildingId, null)
-            );
+            result = coreClient.getRoomListByBuilding(context.userId(), context.role(), resolvedTeamId, resolvedBuildingId).content();
+            llmConversationContextService.saveRoomListMentions(context.userId(), resolvedTeamId, resolvedBuildingId);
         } catch (Exception e) {
             log.info("현재 구현되지 않은 도구 호출입니다. [SearchRoomTool]");
         } finally {
@@ -76,8 +70,8 @@ public class SearchRoomTool {
             @ToolParam(required = false, description = "강의실 번호. 현재 질문에 강의실 번호가 없으면 생략하세요.") Long roomId) {
         long start = System.currentTimeMillis();
         LlmRequestContext context = llmRequestContextHolder.get();
-        Long resolvedTeamId = resolveEntityId(teamId, MentionedEntityType.TEAM);
-        Long resolvedRoomId = resolveEntityId(roomId, MentionedEntityType.ROOM);
+        Long resolvedTeamId = mentionedEntityResolver.resolve(teamId, MentionedEntityType.TEAM);
+        Long resolvedRoomId = mentionedEntityResolver.resolve(roomId, MentionedEntityType.ROOM);
         if (resolvedTeamId == null || resolvedRoomId == null) {
             log.info("[SearchRoomTool] 팀 번호 또는 강의실 번호가 없어 강의실 상세 조회를 중단합니다.");
             return new RoomResponse(
@@ -90,19 +84,8 @@ public class SearchRoomTool {
 
         log.info("[SearchRoomTool] 강의실 상세 정보 조회 호출 TeamID: {}, RoomID: {}", resolvedTeamId, resolvedRoomId);
         try{
-            RoomResponse response = coreClient.getRoomDetail(resolvedTeamId, resolvedRoomId);
-            llmConversationContextService.saveMention(
-                    context.userId(),
-                    new MentionedEntityDto(MentionedEntityType.TEAM, resolvedTeamId, null)
-            );
-            llmConversationContextService.saveMention(
-                    context.userId(),
-                    new MentionedEntityDto(MentionedEntityType.BUILDING, response.buildingId(), null)
-            );
-            llmConversationContextService.saveMention(
-                    context.userId(),
-                    new MentionedEntityDto(MentionedEntityType.ROOM, response.roomId(), response.roomName())
-            );
+            RoomResponse response = coreClient.getRoomDetail(context.userId(), context.role(), resolvedTeamId, resolvedRoomId);
+            llmConversationContextService.saveRoomDetailMentions(context.userId(), resolvedTeamId, response);
             return response;
         } catch (Exception e) {
             log.info("현재 구현되지 않은 도구 호출입니다. [SearchBuildingTool]");
@@ -113,14 +96,4 @@ public class SearchRoomTool {
         }
     }
 
-    private Long resolveEntityId(Long explicitId, MentionedEntityType type) {
-        if (explicitId != null) {
-            return explicitId;
-        }
-        LlmRequestContext context = llmRequestContextHolder.get();
-        return context.conversationContext()
-                .findRecentEntityId(type)
-                .or(() -> llmConversationContextService.find(context.userId()).findRecentEntityId(type))
-                .orElse(null);
-    }
 }
