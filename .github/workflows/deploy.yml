@@ -12,7 +12,7 @@ permissions:
 
 # 설정값
 env:
-  IMAGE_NAME: "team4-recommendation람"
+  IMAGE_NAME: "team4-recommendation"
   DOCKER_DIR: "/home/aiot3/aiot4-team4/app"
 
 jobs:
