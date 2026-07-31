@@ -77,12 +77,17 @@ jobs:
 
       # 커버리지 결과 추출
       - name: JaCoCo 커버리지 퍼센트 추출
-        if: always() # 빌드가 실패했더라도 커버리지는 추출해야 하므로 always()
+        if: always()
         run: |
-          if [ -f "target/site/jacoco/jacoco.xml" ]; then
-            COVERAGE=$(grep '<counter type="LINE"' target/site/jacoco/jacoco.xml | tail -n 1 | awk -F'"' '{ m=$4; c=$6; t=m+c; if(t>0) printf "%.1f", (c/t)*100; else print "0.0" }')
+          # 1. 깃허브 전체 폴더를 뒤져서 jacoco.xml 파일의 진짜 위치를 찾아냅니다.
+          JACOCO_FILE=$(find . -name "jacoco.xml" -path "*/target/site/jacoco/jacoco.xml" | head -n 1)
+
+          if [ -n "$JACOCO_FILE" ]; then
+            # 2. 파일을 찾았다면 전체 합계를 가져와서 소수점 첫째 자리까지 계산합니다.
+            COVERAGE=$(grep '<counter type="LINE"' "$JACOCO_FILE" | tail -n 1 | sed -E 's/.*missed="([0-9]+)".*covered="([0-9]+)".*/\1 \2/' | awk '{ m=$1; c=$2; t=m+c; if(t>0) printf "%.1f", (c/t)*100; else print "0.0" }')
             echo "COVERAGE_PERCENT=$COVERAGE" >> $GITHUB_ENV
           else
+            # 3. 진짜로 파일이 없으면 0.0% 처리
             echo "COVERAGE_PERCENT=0.0" >> $GITHUB_ENV
           fi
 
