@@ -75,6 +75,17 @@ jobs:
             -Dsonar.projectKey=${{ env.PROJECT_KEY }}
 #            -Dsonar.qualitygate.wait=true
 
+      # 커버리지 결과 추출
+      - name: JaCoCo 커버리지 퍼센트 추출
+        if: always() # 빌드가 실패했더라도 커버리지는 추출해야 하므로 always()
+        run: |
+          if [ -f "target/site/jacoco/jacoco.xml" ]; then
+            COVERAGE=$(grep '<counter type="LINE"' target/site/jacoco/jacoco.xml | tail -n 1 | awk -F'"' '{ m=$4; c=$6; t=m+c; if(t>0) printf "%.1f", (c/t)*100; else print "0.0" }')
+            echo "COVERAGE_PERCENT=$COVERAGE" >> $GITHUB_ENV
+          else
+            echo "COVERAGE_PERCENT=0.0" >> $GITHUB_ENV
+          fi
+
       # 1. 성공 시 댓글 (초록색)
       - name: PR에 소나큐브 링크 댓글 작성 (성공)
         uses: marocchino/sticky-pull-request-comment@v2
@@ -86,6 +97,7 @@ jobs:
             ### ✅ PR 품질 검사 통과!
             - 타깃 브랜치: `${{ github.base_ref }}`
             - 분석 결과: `Success` 🟢
+            - 📈 **현재 커버리지: `${{ env.COVERAGE_PERCENT }}%`**
             
             훌륭합니다! 모든 커버리지와 테스트를 통과했습니다.
             
@@ -104,6 +116,7 @@ jobs:
             ### 🚨 PR 품질 검사 실패!
             - 타깃 브랜치: `${{ github.base_ref }}`
             - 분석 결과: `Failure` 🔴
+            - 📈 **현재 커버리지: `${{ env.COVERAGE_PERCENT }}%`**
             
             **[🤔 실패 원인 추측 (아래 중 하나일 확률이 높습니다)]**
             1. **전체 커버리지 60% 미달**: JaCoCo 컷에 걸렸습니다. 테스트 코드를 더 작성하세요!
