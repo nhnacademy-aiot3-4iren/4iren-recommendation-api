@@ -17,7 +17,8 @@ public class ChatClientConfig {
                                         ForecastWeatherTool forecastWeatherTool,
                                         SearchBuildingTool searchBuildingTool,
                                         SearchRoomTool searchRoomTool,
-                                        SearchTeamTool searchTeamTool) {
+                                        SearchTeamTool searchTeamTool,
+                                        SearchSubscriptionRoomTool searchSubscriptionRoomTool) {
         return ChatClient.builder(geminiModel)
                 .defaultSystem("""
                         당신은 강의실 환경, 날씨, 팀/건물/강의실 조회를 돕는 어시스턴트입니다.
@@ -101,7 +102,8 @@ public class ChatClientConfig {
                         
                         위 두 경우가 아니면 options는 반드시 빈 배열로 작성하세요.
                         """)
-                .defaultTools(currentWeatherTool, forecastWeatherTool, searchBuildingTool, searchRoomTool, searchTeamTool)
+                .defaultTools(currentWeatherTool, forecastWeatherTool, searchBuildingTool, searchRoomTool, searchTeamTool,
+                        searchSubscriptionRoomTool)
                 .defaultAdvisors(new SimpleLoggerAdvisor())
                 .build();
     }
