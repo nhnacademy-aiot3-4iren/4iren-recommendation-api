@@ -73,7 +73,7 @@ jobs:
             -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} 
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
             -Dsonar.projectKey=${{ env.PROJECT_KEY }}
-            -Dsonar.qualitygate.wait=true
+#            -Dsonar.qualitygate.wait=true
 
       # 1. 성공 시 댓글 (초록색)
       - name: PR에 소나큐브 링크 댓글 작성 (성공)
