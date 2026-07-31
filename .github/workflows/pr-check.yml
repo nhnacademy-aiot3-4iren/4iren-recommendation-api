@@ -75,21 +75,37 @@ jobs:
             -Dsonar.projectKey=${{ env.PROJECT_KEY }}
 #            -Dsonar.qualitygate.wait=true
 
-      # 커버리지 결과 추출
-      - name: JaCoCo 커버리지 퍼센트 추출
+          # ==========================================
+      # 커버리지 결과 파일(xml)에서 % 숫자만 쏙 빼오기
+      # ==========================================
+      - name: JaCoCo 커버리지 퍼센트 추출 (Python 파싱)
         if: always()
         run: |
-          # 1. 깃허브 전체 폴더를 뒤져서 jacoco.xml 파일의 진짜 위치를 찾아냅니다.
           JACOCO_FILE=$(find . -name "jacoco.xml" -path "*/target/site/jacoco/jacoco.xml" | head -n 1)
-
+          
           if [ -n "$JACOCO_FILE" ]; then
-            # 2. 파일을 찾았다면 전체 합계를 가져와서 소수점 첫째 자리까지 계산합니다.
-            COVERAGE=$(grep '<counter type="LINE"' "$JACOCO_FILE" | tail -n 1 | sed -E 's/.*missed="([0-9]+)".*covered="([0-9]+)".*/\1 \2/' | awk '{ m=$1; c=$2; t=m+c; if(t>0) printf "%.1f", (c/t)*100; else print "0.0" }')
+            # 파이썬을 실행해서 XML 파일의 '전체 합계(Root)' 라인 커버리지만 정확하게 추출합니다.
+            COVERAGE=$(python3 -c "
+            import xml.etree.ElementTree as ET
+            import sys
+          try:
+            root = ET.parse('$JACOCO_FILE').getroot()
+            # XML 최상단(전체 프로젝트 합계)에 있는 counter 속성만 찾습니다.
+            for child in root:
+              if child.tag == 'counter' and child.attrib.get('type') == 'LINE':
+                m = int(child.attrib.get('missed', 0))
+                c = int(child.attrib.get('covered', 0))
+                t = m + c
+                print(f'{(c/t)*100:.1f}' if t > 0 else '0.0')
+                sys.exit(0)
+            print('0.0')
+          except Exception as e:
+            print('0.0')
+            ")
             echo "COVERAGE_PERCENT=$COVERAGE" >> $GITHUB_ENV
-          else
-            # 3. 진짜로 파일이 없으면 0.0% 처리
+            else
             echo "COVERAGE_PERCENT=0.0" >> $GITHUB_ENV
-          fi
+            fi
 
       # 1. 성공 시 댓글 (초록색)
       - name: PR에 소나큐브 링크 댓글 작성 (성공)
