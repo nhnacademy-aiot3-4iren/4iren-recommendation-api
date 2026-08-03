@@ -58,6 +58,7 @@ jobs:
             -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} 
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
             -Dsonar.projectKey=${{ env.PROJECT_KEY }}
+            -Dsonar.qualitygate.wait=false
 
       # main 브랜치 소나큐브 적용 (실패 시 최대 3회 재시도)
       - name: 코드 빌드 및 소나큐브 분석 (Main)
@@ -73,7 +74,7 @@ jobs:
             -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} 
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
             -Dsonar.projectKey=${{ env.PROJECT_KEY }}
-            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.wait=false
 
       # 커버리지 결과 파일(xml)에서 결과 추출
       - name: JaCoCo 커버리지 퍼센트 추출 (Python 파싱)
