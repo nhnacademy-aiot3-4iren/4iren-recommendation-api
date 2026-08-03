@@ -1,0 +1,121 @@
+name: Recommendation Server CI/CD
+
+# 스크립트 실행 시기
+on:
+  push:
+    branches: [ "develop" ] # develop 브랜치에 push 발생할 때
+
+# 권한 설정
+permissions:
+  contents: read
+  packages: write # GHCR(저장소)에 이미지를 올릴 권한
+
+# 설정값
+env:
+  IMAGE_NAME: "team4-recommendation"
+  DOCKER_DIR: "/home/aiot3/aiot4-team4/app"
+
+jobs:
+  # 1. 빌드 및 GHCR 업로드
+  build-and-push:
+    runs-on: ubuntu-latest # GitHub 클라우드 서버 빌려 쓰기
+    steps:
+      - name: 코드 가져오기
+        uses: actions/checkout@v3
+
+      - name: JDK 21 세팅
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Maven 실행 권한 부여
+        run: chmod +x ./mvnw
+
+      - name: Maven으로 코드 빌드하기 (Spring Boot JAR 생성) - 실패 시 3회 재시도
+        uses: nick-fields/retry@v3
+        with:
+          # 빌드 타임 아웃 (제한 시간)
+          timeout_minutes: 10
+          # 최대 재시도 횟수
+          max_attempts: 3
+          # 재시도 시, 어느정도의 시간을 두고 할건지
+          retry_wait_seconds: 5
+          # 실제 실행 코드
+          command: ./mvnw clean package -DskipTests
+
+      - name: GHCR (GitHub 이미지 저장소) 로그인
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # GitHub이 자동으로 발급해주는 임시 토큰 사용
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # docker build & push 과정
+      - name: Docker 이미지 빌드 및 GHCR에 업로드
+        run: |
+          docker build -t ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest .
+          docker push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+
+  # 2. 서버에 배포
+  deploy:
+    needs: build-and-push # 1번 작업이 끝나고 실행
+    runs-on: self-hosted  # 자체 서버에서 실행
+
+    steps:
+      - name: GHCR 로그인 (서버 내부에서 로그인)
+        run: |
+          echo "${{ secrets.DEPLOYKEY }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: 무중단 롤링 배포 실행 (Zero-Downtime)
+        run: |
+          cd ${{ env.DOCKER_DIR }}
+
+          # 1. 최신 이미지 당겨오기
+          docker pull ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+
+          # 2. 첫 번째 컨테이너(1번) 교체 및 띄우기
+          echo "1번 서버 업데이트 시작..."
+          docker compose up -d --no-deps ${{ env.IMAGE_NAME }}-1
+
+          echo "1번 서버 구동 대기 중..."
+          # 최대 20번(약 100초) 대기하며 헬스체크
+          for i in {1..20}; do
+            STATUS=$(docker exec ${{ env.IMAGE_NAME }}-1 wget -qO- http://localhost:8080/actuator/health 2>/dev/null | grep '"status":"UP"' || true)
+
+            if [ -n "$STATUS" ]; then
+              echo "1번 서버 구동 완료!"
+              break
+            fi
+            echo "대기 중... ($i/20)"
+            sleep 5
+          done
+
+          if [ -z "$STATUS" ]; then
+            echo "1번 서버 구동 실패! 배포를 중단합니다."
+            exit 1
+          fi
+
+          # 3. 두 번째 컨테이너(2번) 교체 및 띄우기
+          echo "2번 서버 업데이트 시작..."
+          docker compose up -d --no-deps ${{ env.IMAGE_NAME }}-2
+
+          echo "2번 서버 구동 대기 중..."
+          for i in {1..20}; do
+            STATUS=$(docker exec ${{ env.IMAGE_NAME }}-2 wget -qO- http://localhost:8080/actuator/health 2>/dev/null | grep '"status":"UP"' || true)
+
+            if [ -n "$STATUS" ]; then
+              echo "2번 서버 구동 완료!"
+              break
+            fi
+            echo "대기 중... ($i/20)"
+            sleep 5
+          done
+
+          if [ -z "$STATUS" ]; then
+            echo "2번 서버 구동 실패!"
+            exit 1
+          fi
+          

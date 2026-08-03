@@ -1,0 +1,13 @@
+### llm호출 답변 생성
+GET http://localhost:8763/api/recommendation/llm?message=지금 강의실 이산화탄소 농도가 1100ppm인데 어떡할까?
+
+### llm호출
+POST http://localhost:8763/api/recommendation/chat
+Content-Type: application/json
+X-User-Id: 1
+X-User-Role: ADMIN
+
+{
+  "message": "9번팀 건물 목록",
+  "requestedAt": "2026-07-30T11:20:00"
+}
