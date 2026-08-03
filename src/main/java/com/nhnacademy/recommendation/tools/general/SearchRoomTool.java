@@ -4,6 +4,7 @@ import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
 import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
+import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import com.nhnacademy.recommendation.dto.room.RoomResponse;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
 import com.nhnacademy.recommendation.service.LlmConversationContextService;
@@ -68,7 +69,7 @@ public class SearchRoomTool {
                     예: "3번팀 10번 강의실 상세", "그 강의실 정보 보여줘"라는 질문에는 반드시 이 도구를 호출하세요.
                     """
     )
-    public ToolResult<RoomResponse> getRoomDetail(
+    public ToolResult<RoomDetailResponse> getRoomDetail(
             @ToolParam(required = false, description = "팀의 번호. 현재 질문에 팀 번호가 없으면 생략하세요.") Long teamId,
             @ToolParam(required = false, description = "강의실 번호. 현재 질문에 강의실 번호가 없으면 생략하세요.") Long roomId) {
         LlmRequestContext context = llmRequestContextHolder.get();
@@ -85,7 +86,7 @@ public class SearchRoomTool {
 
                     log.info("[SearchRoomTool] 강의실 상세 정보 조회 호출 TeamID: {}, RoomID: {}", resolvedTeamId, resolvedRoomId);
                     try {
-                        RoomResponse response = coreClient.getRoomDetail(context.userId(), context.role(), resolvedTeamId, resolvedRoomId);
+                        RoomDetailResponse response = coreClient.getRoomDetail(context.userId(), context.role(), resolvedTeamId, resolvedRoomId);
                         llmConversationContextService.saveRoomDetailMentions(context.userId(), resolvedTeamId, response);
                         return ToolResult.success(response);
                     } catch (Exception e) {

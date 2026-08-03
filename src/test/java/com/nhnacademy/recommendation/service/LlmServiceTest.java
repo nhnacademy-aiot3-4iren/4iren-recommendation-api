@@ -106,4 +106,109 @@ class LlmServiceTest {
 
         verifyNoInteractions(chatClient);
     }
+
+    @Test
+    @DisplayName("null인 답변 생성 예외 상황")
+    void rawAnswerParsing_Error_Null(){
+
+        LlmConversationContext context = new LlmConversationContext(
+                "이전 질문",
+                "이전 답변",
+                List.of(new MentionedEntityDto(MentionedEntityType.TEAM, 3L, null)),
+                LocalDateTime.of(2026, 7, 31, 9, 0)
+        );
+        LlmRequestDto request = new LlmRequestDto(null, null, "건물 목록 보여줘", LocalDateTime.of(2026, 7, 31, 10, 0));
+
+        given(conversationContextService.find(1L)).willReturn(context, context);
+        given(chatClient.prompt()).willReturn(requestSpec);
+        given(requestSpec.user(anyString())).willReturn(requestSpec);
+        given(requestSpec.call()).willReturn(callResponseSpec);
+        given(callResponseSpec.content()).willReturn(null);
+
+        LlmResponseDto response = llmService.answer(1L, UserRole.NORMAL, request);
+
+
+        assertThat(response.getAnswer()).isEqualTo(new AnswerDto("답변을 생성하지 못했습니다.", List.of()));
+    }
+
+    @Test
+    @DisplayName("blank 인 답변 생성 예외 상황")
+    void rawAnswerParsing_Error_Blank(){
+
+        LlmConversationContext context = new LlmConversationContext(
+                "이전 질문",
+                "이전 답변",
+                List.of(new MentionedEntityDto(MentionedEntityType.TEAM, 3L, null)),
+                LocalDateTime.of(2026, 7, 31, 9, 0)
+        );
+        LlmRequestDto request = new LlmRequestDto(null, null, "건물 목록 보여줘", LocalDateTime.of(2026, 7, 31, 10, 0));
+
+        given(conversationContextService.find(1L)).willReturn(context, context);
+        given(chatClient.prompt()).willReturn(requestSpec);
+        given(requestSpec.user(anyString())).willReturn(requestSpec);
+        given(requestSpec.call()).willReturn(callResponseSpec);
+        given(callResponseSpec.content()).willReturn("");
+
+        LlmResponseDto response = llmService.answer(1L, UserRole.NORMAL, request);
+
+
+        assertThat(response.getAnswer()).isEqualTo(new AnswerDto("답변을 생성하지 못했습니다.", List.of()));
+    }
+
+    @Test
+    @DisplayName("형식 이상인 답변 생성 예외 상황")
+    void rawAnswerParsing_Error_Json(){
+        String wrongAnswer = "잘못된 형식 답변입니다. 예: 문자열";
+
+        LlmConversationContext context = new LlmConversationContext(
+                "이전 질문",
+                "이전 답변",
+                List.of(new MentionedEntityDto(MentionedEntityType.TEAM, 3L, null)),
+                LocalDateTime.of(2026, 7, 31, 9, 0)
+        );
+        LlmRequestDto request = new LlmRequestDto(null, null, "건물 목록 보여줘", LocalDateTime.of(2026, 7, 31, 10, 0));
+
+        given(conversationContextService.find(1L)).willReturn(context, context);
+        given(chatClient.prompt()).willReturn(requestSpec);
+        given(requestSpec.user(anyString())).willReturn(requestSpec);
+        given(requestSpec.call()).willReturn(callResponseSpec);
+        given(callResponseSpec.content()).willReturn(wrongAnswer);
+
+        LlmResponseDto response = llmService.answer(1L, UserRole.NORMAL, request);
+
+
+        assertThat(response.getAnswer()).isEqualTo(new AnswerDto(wrongAnswer, List.of()));
+    }
+
+
+    @Test
+    @DisplayName("마크다운 형식 파싱")
+    void answerParsing_Markdown(){
+
+        LlmConversationContext context = new LlmConversationContext(
+                "이전 질문",
+                "이전 답변",
+                List.of(new MentionedEntityDto(MentionedEntityType.TEAM, 3L, null)),
+                LocalDateTime.of(2026, 7, 31, 9, 0)
+        );
+        LlmRequestDto request = new LlmRequestDto(null, null, "건물 목록 보여줘", LocalDateTime.of(2026, 7, 31, 10, 0));
+
+        given(conversationContextService.find(1L)).willReturn(context, context);
+        given(chatClient.prompt()).willReturn(requestSpec);
+        given(requestSpec.user(anyString())).willReturn(requestSpec);
+        given(requestSpec.call()).willReturn(callResponseSpec);
+        given(callResponseSpec.content()).willReturn("""
+                ```
+                {
+                    "answer": "마크다운 답변",
+                    "options": []
+                }
+                ```
+                """);
+
+        LlmResponseDto response = llmService.answer(1L, UserRole.NORMAL, request);
+
+
+        assertThat(response.getAnswer()).isEqualTo(new AnswerDto("마크다운 답변", List.of()));
+    }
 }

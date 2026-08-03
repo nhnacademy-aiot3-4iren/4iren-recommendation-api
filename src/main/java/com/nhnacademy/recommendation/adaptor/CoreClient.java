@@ -6,6 +6,7 @@ import com.nhnacademy.recommendation.dto.building.BuildingDetailResponse;
 import com.nhnacademy.recommendation.dto.building.BuildingResponse;
 import com.nhnacademy.recommendation.dto.kma.KmaCurrentWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
+import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import com.nhnacademy.recommendation.dto.room.RoomResponse;
 import com.nhnacademy.recommendation.dto.roomsub.RoomSubscriptionResponse;
 import com.nhnacademy.recommendation.dto.team.TeamResponse;
@@ -20,10 +21,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface CoreClient {
 
     @GetMapping("/kma/ultraSrtNcst")
-    ResponseEntity<KmaCurrentWeatherResponseDto> getNcst(@RequestParam String regionName);
+    ResponseEntity<KmaCurrentWeatherResponseDto> getNcst(@RequestParam("regionName") String regionName);
 
     @GetMapping("/kma/ultraSrtFcst")
-    ResponseEntity<KmaForecastWeatherResponseDto> getFcst(@RequestParam String regionName);
+    ResponseEntity<KmaForecastWeatherResponseDto> getFcst(@RequestParam("regionName") String regionName);
 
 
     /// 팀에 속한 건물 리스트 조회
@@ -40,7 +41,7 @@ public interface CoreClient {
 
     /// 강의실 세부 정보 조회
     @GetMapping("/teams/{teamId}/rooms/{roomId}")
-    RoomResponse getRoomDetail(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable Long teamId, @PathVariable Long roomId);
+    RoomDetailResponse getRoomDetail(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable Long teamId, @PathVariable Long roomId);
 
     /// 사용자의 팀 목록 조회
     @GetMapping("/teams")

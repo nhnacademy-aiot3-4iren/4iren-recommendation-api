@@ -7,6 +7,7 @@ import com.nhnacademy.recommendation.dto.building.BuildingResponse;
 import com.nhnacademy.recommendation.dto.llm.LlmConversationContext;
 import com.nhnacademy.recommendation.dto.llm.MentionedEntityDto;
 import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
+import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import com.nhnacademy.recommendation.dto.room.RoomResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -89,7 +90,7 @@ public class LlmConversationContextService {
         saveBuildingMention(userId, buildingId, null);
     }
 
-    public void saveRoomDetailMentions(Long userId, Long teamId, RoomResponse response) {
+    public void saveRoomDetailMentions(Long userId, Long teamId, RoomDetailResponse response) {
         saveTeamMention(userId, teamId);
         if (response != null) {
             saveBuildingMention(userId, response.buildingId(), null);
