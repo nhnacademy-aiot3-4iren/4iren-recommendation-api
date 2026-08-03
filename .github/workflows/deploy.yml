@@ -1,4 +1,4 @@
-name: Core Server CI/CD
+name: Recommendation Server CI/CD
 
 # 스크립트 실행 시기
 on:
