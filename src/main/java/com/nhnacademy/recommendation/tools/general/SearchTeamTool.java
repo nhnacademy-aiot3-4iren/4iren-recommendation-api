@@ -6,8 +6,6 @@ import com.nhnacademy.recommendation.dto.PageResponse;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
 import com.nhnacademy.recommendation.dto.team.TeamResponse;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
-import com.nhnacademy.recommendation.service.LlmConversationContextService;
-import com.nhnacademy.recommendation.service.MentionedEntityResolver;
 import com.nhnacademy.recommendation.util.TimingLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,8 +21,6 @@ public class SearchTeamTool {
 
     private final CoreClient coreClient;
     private final LlmRequestContextHolder llmRequestContextHolder;
-    private final LlmConversationContextService llmConversationContextService;
-    private final MentionedEntityResolver mentionedEntityResolver;
 
 
 

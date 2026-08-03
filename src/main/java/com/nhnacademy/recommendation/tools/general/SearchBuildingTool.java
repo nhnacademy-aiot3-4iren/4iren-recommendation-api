@@ -82,7 +82,7 @@ public class SearchBuildingTool {
                     log.info("[SearchBuildingTool] 건물 상세 정보 조회 호출 Team ID: {}, Building ID: {}", resolvedTeamId, resolvedBuildingId);
                     try {
                         BuildingDetailResponse response = coreClient.getBuildingDetail(
-                                Long.valueOf(context.userId()),
+                                context.userId(),
                                 context.role(),
                                 resolvedTeamId,
                                 resolvedBuildingId
