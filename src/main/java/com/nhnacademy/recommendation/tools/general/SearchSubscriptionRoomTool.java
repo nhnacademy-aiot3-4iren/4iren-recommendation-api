@@ -34,7 +34,7 @@ public class SearchSubscriptionRoomTool {
                     추후 팀의 강의실 목록 조회 도구를 호출하여 답변을 보완할 수 있습니다.
                     """
     )
-    public ToolResult<List<RoomSubscriptionResponse>> getSubscriptionRoomByUserAndTeam(
+    public ToolResult<List<RoomSubscriptionResponse>> getSubscriptionRoomsByUserAndTeam(
             @ToolParam(required = false, description = "팀의 번호. 현재 질문에 팀 번호가 없으면 생략하세요.") Long teamId){
         log.info("[SearchSubscriptionRoomTool] 현재 구독중인 강의실(Team) 목록 조회 호출");
         LlmRequestContext context = llmRequestContextHolder.get();
