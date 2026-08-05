@@ -1,11 +1,10 @@
 package com.nhnacademy.recommendation.tools.general;
 
-import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
-import com.nhnacademy.recommendation.dto.PageResponse;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
 import com.nhnacademy.recommendation.dto.team.TeamResponse;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
+import com.nhnacademy.recommendation.service.CoreTeamService;
 import com.nhnacademy.recommendation.util.TimingLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +18,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SearchTeamTool {
 
-    private final CoreClient coreClient;
+    private final CoreTeamService coreTeamService;
     private final LlmRequestContextHolder llmRequestContextHolder;
 
 
@@ -35,8 +34,7 @@ public class SearchTeamTool {
         return TimingLog.measure(log, "[Timing][Tool] search_team_list", () -> {
             LlmRequestContext context = llmRequestContextHolder.get();
             try {
-                PageResponse<TeamResponse> teamPage = coreClient.getTeamsByUser(context.userId(), context.role());
-                List<TeamResponse> teamList = teamPage.content().stream().toList();
+                List<TeamResponse> teamList = coreTeamService.getTeamsByUser(context.userId(), context.role());
                 if(teamList.isEmpty()){
                     log.info("UserId: {} 가 현재 가입한 팀이 없습니다.", context.userId());
                 }
