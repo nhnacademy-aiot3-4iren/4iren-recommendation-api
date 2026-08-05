@@ -1,8 +1,8 @@
 package com.nhnacademy.recommendation.tools.general;
 
-import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.dto.kma.KmaCurrentWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
+import com.nhnacademy.recommendation.service.CoreWeatherService;
 import com.nhnacademy.recommendation.util.TimingLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class CurrentWeatherTool {
 
-    private final CoreClient coreClient;
+    private final CoreWeatherService coreWeatherService;
 
 
 
@@ -36,7 +36,7 @@ public class CurrentWeatherTool {
         log.info("[Current Weather Tool] 실시간 날씨 조회 호출");
         return TimingLog.measure(log, "[Timing][Tool] current_weather region=" + region, () -> {
             try {
-                return ToolResult.success(coreClient.getNcst(region).getBody());
+                return ToolResult.success(coreWeatherService.getCurrentWeather(region));
             } catch (Exception e) {
                 log.warn("[CurrentWeatherTool] 현재 날씨 조회 실패. region={}", region, e);
                 return ToolResult.failure("CURRENT_WEATHER_QUERY_FAILED", "현재 날씨를 조회하지 못했습니다.");

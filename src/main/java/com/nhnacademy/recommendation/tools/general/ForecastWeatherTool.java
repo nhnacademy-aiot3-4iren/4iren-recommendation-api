@@ -1,9 +1,9 @@
 package com.nhnacademy.recommendation.tools.general;
 
 
-import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
+import com.nhnacademy.recommendation.service.CoreWeatherService;
 import com.nhnacademy.recommendation.util.TimingLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class ForecastWeatherTool {
 
-    private final CoreClient coreClient;
+    private final CoreWeatherService coreWeatherService;
 
 
     @Tool(name = "forecast_weather",
@@ -28,7 +28,7 @@ public class ForecastWeatherTool {
         log.info("[Forecast Weather Tool] 오늘 날씨 예보 호출");
         return TimingLog.measure(log, "[Timing][Tool] forecast_weather region=" + region, () -> {
             try {
-                return ToolResult.success(coreClient.getFcst(region).getBody());
+                return ToolResult.success(coreWeatherService.getForecastWeather(region));
             } catch (Exception e) {
                 log.warn("[ForecastWeatherTool] 날씨 예보 조회 실패. region={}", region, e);
                 return ToolResult.failure("FORECAST_WEATHER_QUERY_FAILED", "날씨 예보를 조회하지 못했습니다.");

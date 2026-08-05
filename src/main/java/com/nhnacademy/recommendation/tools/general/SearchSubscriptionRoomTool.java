@@ -1,11 +1,11 @@
 package com.nhnacademy.recommendation.tools.general;
 
-import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
 import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
 import com.nhnacademy.recommendation.dto.roomsub.RoomSubscriptionResponse;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
+import com.nhnacademy.recommendation.service.CoreSubscriptionRoomService;
 import com.nhnacademy.recommendation.service.LlmConversationContextService;
 import com.nhnacademy.recommendation.service.MentionedEntityResolver;
 import com.nhnacademy.recommendation.util.TimingLog;
@@ -21,7 +21,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class SearchSubscriptionRoomTool {
-    private final CoreClient coreClient;
+    private final CoreSubscriptionRoomService coreSubscriptionRoomService;
     private final LlmRequestContextHolder llmRequestContextHolder;
     private final LlmConversationContextService llmConversationContextService;
     private final MentionedEntityResolver mentionedEntityResolver;
@@ -45,7 +45,7 @@ public class SearchSubscriptionRoomTool {
                 return ToolResult.failure("MISSING_TEAM_ID", "팀 번호가 필요합니다. 어느 팀의 강의실 구독 정보 목록인지 물어보세요.");
             }
             try {
-                List<RoomSubscriptionResponse> result = coreClient.getSubscriptions(context.userId(), context.role(),resolvedTeamId).content();
+                List<RoomSubscriptionResponse> result = coreSubscriptionRoomService.getSubscriptions(context.userId(), context.role(),resolvedTeamId);
                 llmConversationContextService.saveTeamMention(context.userId(), resolvedTeamId);
                 return ToolResult.success(result);
             } catch (Exception e) {

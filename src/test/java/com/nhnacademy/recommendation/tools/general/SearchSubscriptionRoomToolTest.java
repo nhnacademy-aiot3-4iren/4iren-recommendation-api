@@ -1,16 +1,16 @@
 package com.nhnacademy.recommendation.tools.general;
 
-import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
-import com.nhnacademy.recommendation.dto.PageResponse;
 import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.llm.LlmConversationContext;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
 import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
 import com.nhnacademy.recommendation.dto.roomsub.RoomSubscriptionResponse;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
+import com.nhnacademy.recommendation.service.CoreSubscriptionRoomService;
 import com.nhnacademy.recommendation.service.LlmConversationContextService;
 import com.nhnacademy.recommendation.service.MentionedEntityResolver;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,7 +27,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 @ExtendWith(MockitoExtension.class)
 class SearchSubscriptionRoomToolTest {
     @Mock
-    CoreClient coreClient;
+    CoreSubscriptionRoomService coreSubscriptionRoomService;
 
     @Mock
     LlmRequestContextHolder contextHolder;
@@ -38,16 +38,23 @@ class SearchSubscriptionRoomToolTest {
     @Mock
     MentionedEntityResolver mentionedEntityResolver;
 
+    SearchSubscriptionRoomTool tool;
+    LlmRequestContext context;
+
+    @BeforeEach
+    void setUp() {
+        context = new LlmRequestContext(1L, UserRole.NORMAL, LlmConversationContext.empty());
+        tool = new SearchSubscriptionRoomTool(coreSubscriptionRoomService, contextHolder, conversationContextService, mentionedEntityResolver);
+    }
+
     @Test
     @DisplayName("사용자가 구독한 강의실 목록 조회(TeamId)")
     void getSubscriptionRooms(){
-        SearchSubscriptionRoomTool tool = new SearchSubscriptionRoomTool(coreClient, contextHolder, conversationContextService, mentionedEntityResolver);
-        LlmRequestContext context = new LlmRequestContext(1L, UserRole.NORMAL, LlmConversationContext.empty());
         List<RoomSubscriptionResponse> roomSubscriptions = List.of(new RoomSubscriptionResponse(1L, 20L, true));
 
         given(contextHolder.get()).willReturn(context);
         given(mentionedEntityResolver.resolve(3L, MentionedEntityType.TEAM)).willReturn(3L);
-        given(coreClient.getSubscriptions(1L, UserRole.NORMAL, 3L)).willReturn(new PageResponse<>(roomSubscriptions, 0, 10, 1, 1, true, true));
+        given(coreSubscriptionRoomService.getSubscriptions(1L, UserRole.NORMAL, 3L)).willReturn(roomSubscriptions);
 
         ToolResult<List<RoomSubscriptionResponse>> result = tool.getSubscriptionRoomsByUserAndTeam(3L);
 
@@ -62,9 +69,6 @@ class SearchSubscriptionRoomToolTest {
     @Test
     @DisplayName("사용자가 구독한 강의실 목록 조회(TeamId) 실패 - 팀ID 오류")
     void getSubscriptionRooms_Fail_TeamID(){
-        SearchSubscriptionRoomTool tool = new SearchSubscriptionRoomTool(coreClient, contextHolder, conversationContextService, mentionedEntityResolver);
-        LlmRequestContext context = new LlmRequestContext(1L, UserRole.NORMAL, LlmConversationContext.empty());
-
         given(contextHolder.get()).willReturn(context);
         given(mentionedEntityResolver.resolve(null, MentionedEntityType.TEAM)).willReturn(null);
 
@@ -73,19 +77,16 @@ class SearchSubscriptionRoomToolTest {
         assertThat(result.success()).isFalse();
         assertThat(result.code()).isEqualTo("MISSING_TEAM_ID");
         assertThat(result.data()).isNull();
-        verifyNoInteractions(coreClient);
+        verifyNoInteractions(coreSubscriptionRoomService);
         verifyNoInteractions(conversationContextService);
     }
 
     @Test
     @DisplayName("사용자가 구독한 강의실 목록 조회(TeamId) 실패 - Core API 오류")
     void getSubscriptionRooms_Fail_CoreAPI(){
-        SearchSubscriptionRoomTool tool = new SearchSubscriptionRoomTool(coreClient, contextHolder, conversationContextService, mentionedEntityResolver);
-        LlmRequestContext context = new LlmRequestContext(1L, UserRole.NORMAL, LlmConversationContext.empty());
-
         given(contextHolder.get()).willReturn(context);
         given(mentionedEntityResolver.resolve(3L, MentionedEntityType.TEAM)).willReturn(3L);
-        given(coreClient.getSubscriptions(1L, UserRole.NORMAL, 3L)).willThrow(new RuntimeException());
+        given(coreSubscriptionRoomService.getSubscriptions(1L, UserRole.NORMAL, 3L)).willThrow(new RuntimeException());
 
         ToolResult<List<RoomSubscriptionResponse>> result = tool.getSubscriptionRoomsByUserAndTeam(3L);
 

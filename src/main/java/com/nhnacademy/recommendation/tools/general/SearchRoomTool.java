@@ -1,12 +1,12 @@
 package com.nhnacademy.recommendation.tools.general;
 
-import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
 import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import com.nhnacademy.recommendation.dto.room.RoomResponse;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
+import com.nhnacademy.recommendation.service.CoreRoomService;
 import com.nhnacademy.recommendation.service.LlmConversationContextService;
 import com.nhnacademy.recommendation.service.MentionedEntityResolver;
 import com.nhnacademy.recommendation.util.TimingLog;
@@ -22,7 +22,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class SearchRoomTool {
-    private final CoreClient coreClient;
+    private final CoreRoomService coreRoomService;
     private final LlmRequestContextHolder llmRequestContextHolder;
     private final LlmConversationContextService llmConversationContextService;
     private final MentionedEntityResolver mentionedEntityResolver;
@@ -52,7 +52,7 @@ public class SearchRoomTool {
                     log.info("[SearchRoomTool] 건물 내 강의실 목록 조회 호출 TeamID: {}, BuildingID: {}", resolvedTeamId, resolvedBuildingId);
 
                     try {
-                        List<RoomResponse> result = coreClient.getRoomListByBuilding(context.userId(), context.role(), resolvedTeamId, resolvedBuildingId).content();
+                        List<RoomResponse> result = coreRoomService.getRoomListByBuilding(context.userId(), context.role(), resolvedTeamId, resolvedBuildingId);
                         llmConversationContextService.saveRoomListMentions(context.userId(), resolvedTeamId, resolvedBuildingId);
                         return ToolResult.success(result);
                     } catch (Exception e) {
@@ -86,7 +86,7 @@ public class SearchRoomTool {
 
                     log.info("[SearchRoomTool] 강의실 상세 정보 조회 호출 TeamID: {}, RoomID: {}", resolvedTeamId, resolvedRoomId);
                     try {
-                        RoomDetailResponse response = coreClient.getRoomDetail(context.userId(), context.role(), resolvedTeamId, resolvedRoomId);
+                        RoomDetailResponse response = coreRoomService.getRoomDetail(context.userId(), context.role(), resolvedTeamId, resolvedRoomId);
                         llmConversationContextService.saveRoomDetailMentions(context.userId(), resolvedTeamId, response);
                         return ToolResult.success(response);
                     } catch (Exception e) {
