@@ -8,7 +8,7 @@ import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import com.nhnacademy.recommendation.dto.room.RoomResponse;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
-import com.nhnacademy.recommendation.service.CoreRoomService;
+import com.nhnacademy.recommendation.service.core.CoreRoomService;
 import com.nhnacademy.recommendation.service.LlmConversationContextService;
 import com.nhnacademy.recommendation.service.MentionedEntityResolver;
 import org.junit.jupiter.api.BeforeEach;

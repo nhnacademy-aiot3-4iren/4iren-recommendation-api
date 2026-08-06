@@ -1,4 +1,4 @@
-package com.nhnacademy.recommendation.service;
+package com.nhnacademy.recommendation.service.core;
 
 import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.dto.kma.KmaCurrentWeatherResponseDto;
@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import static com.nhnacademy.recommendation.service.CoreRequestValidator.requireText;
+import static com.nhnacademy.recommendation.service.core.CoreRequestValidator.requireText;
 
 @Slf4j
 @Service

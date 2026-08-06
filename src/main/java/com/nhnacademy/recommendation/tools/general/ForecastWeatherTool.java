@@ -3,7 +3,7 @@ package com.nhnacademy.recommendation.tools.general;
 
 import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
-import com.nhnacademy.recommendation.service.CoreWeatherService;
+import com.nhnacademy.recommendation.service.core.CoreWeatherService;
 import com.nhnacademy.recommendation.util.TimingLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

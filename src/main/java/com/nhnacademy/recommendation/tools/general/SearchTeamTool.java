@@ -4,7 +4,7 @@ import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
 import com.nhnacademy.recommendation.dto.team.TeamResponse;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
-import com.nhnacademy.recommendation.service.CoreTeamService;
+import com.nhnacademy.recommendation.service.core.CoreTeamService;
 import com.nhnacademy.recommendation.util.TimingLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

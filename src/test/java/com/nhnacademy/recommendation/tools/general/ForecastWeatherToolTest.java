@@ -2,7 +2,7 @@ package com.nhnacademy.recommendation.tools.general;
 
 import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
-import com.nhnacademy.recommendation.service.CoreWeatherService;
+import com.nhnacademy.recommendation.service.core.CoreWeatherService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

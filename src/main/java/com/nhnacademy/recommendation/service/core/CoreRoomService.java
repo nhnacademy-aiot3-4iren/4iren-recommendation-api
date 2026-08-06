@@ -1,4 +1,4 @@
-package com.nhnacademy.recommendation.service;
+package com.nhnacademy.recommendation.service.core;
 
 import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.dto.UserRole;
@@ -10,8 +10,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-import static com.nhnacademy.recommendation.service.CoreRequestValidator.requireNonNull;
-import static com.nhnacademy.recommendation.service.CoreRequestValidator.requirePositive;
+import static com.nhnacademy.recommendation.service.core.CoreRequestValidator.requireNonNull;
+import static com.nhnacademy.recommendation.service.core.CoreRequestValidator.requirePositive;
 
 @Slf4j
 @Service

@@ -4,6 +4,7 @@ import com.nhnacademy.recommendation.dto.PageResponse;
 import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.building.BuildingDetailResponse;
 import com.nhnacademy.recommendation.dto.building.BuildingResponse;
+import com.nhnacademy.recommendation.dto.device.DeviceResponse;
 import com.nhnacademy.recommendation.dto.kma.KmaCurrentWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
@@ -50,5 +51,9 @@ public interface CoreClient {
     /// 사용자의 팀 내 구독중인 방 목록 조회
     @GetMapping("/teams/{teamId}/room-subscriptions")
     PageResponse<RoomSubscriptionResponse> getSubscriptions(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable Long teamId);
+
+    /// 강의실 내 기기 목록 조회
+    @GetMapping("/teams/{teamId}/rooms/{roomId}/devices")
+    PageResponse<DeviceResponse> getDevices(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable Long teamId, @PathVariable Long roomId);
 
 }

@@ -7,7 +7,7 @@ import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
 import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
 import com.nhnacademy.recommendation.dto.roomsub.RoomSubscriptionResponse;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
-import com.nhnacademy.recommendation.service.CoreSubscriptionRoomService;
+import com.nhnacademy.recommendation.service.core.CoreSubscriptionRoomService;
 import com.nhnacademy.recommendation.service.LlmConversationContextService;
 import com.nhnacademy.recommendation.service.MentionedEntityResolver;
 import org.junit.jupiter.api.BeforeEach;
