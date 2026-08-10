@@ -3,7 +3,7 @@ package com.nhnacademy.recommendation.service.welcomebriefing;
 import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.team.TeamResponse;
 import com.nhnacademy.recommendation.dto.team.TeamRole;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.WelcomeBriefingPolicyDto;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyDto;
 import com.nhnacademy.recommendation.entity.WelcomeBriefingPolicy;
 import com.nhnacademy.recommendation.exception.InvalidPolicyRangeException;
 import com.nhnacademy.recommendation.exception.PolicyAccessDeniedException;

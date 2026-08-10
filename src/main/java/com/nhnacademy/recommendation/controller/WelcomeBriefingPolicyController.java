@@ -1,9 +1,9 @@
 package com.nhnacademy.recommendation.controller;
 
 import com.nhnacademy.recommendation.dto.UserRole;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.WelcomeBriefingPolicyDto;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.WelcomeBriefingPolicyEnabledRequest;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.WelcomeBriefingPolicyResponse;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyDto;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyEnabledRequest;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyResponse;
 import com.nhnacademy.recommendation.entity.WelcomeBriefingPolicy;
 import com.nhnacademy.recommendation.service.welcomebriefing.WelcomeBriefingPolicyService;
 import lombok.RequiredArgsConstructor;

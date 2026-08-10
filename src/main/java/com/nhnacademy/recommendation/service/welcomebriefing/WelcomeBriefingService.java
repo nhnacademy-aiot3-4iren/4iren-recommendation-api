@@ -7,14 +7,14 @@ import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import com.nhnacademy.recommendation.dto.room.RoomDevicesResponse;
 import com.nhnacademy.recommendation.dto.room.RoomRegionResponse;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.CurrentWeatherSnapshot;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.DeviceStatus;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.IndoorEnvironmentAnalysis;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.RoomInfo;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.TodayWeatherOutlook;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.WelcomeBriefingContext;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.WelcomeBriefingResponse;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.WelcomeBriefingPolicyDto;
+import com.nhnacademy.recommendation.dto.welcomebriefing.CurrentWeatherSnapshot;
+import com.nhnacademy.recommendation.dto.welcomebriefing.DeviceStatus;
+import com.nhnacademy.recommendation.dto.welcomebriefing.IndoorEnvironmentAnalysis;
+import com.nhnacademy.recommendation.dto.welcomebriefing.RoomInfo;
+import com.nhnacademy.recommendation.dto.welcomebriefing.TodayWeatherOutlook;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingContext;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingResponse;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyDto;
 import com.nhnacademy.recommendation.service.core.CoreRequestValidator;
 import com.nhnacademy.recommendation.service.core.CoreRoomService;
 import com.nhnacademy.recommendation.service.core.CoreWeatherService;
@@ -224,63 +224,90 @@ public class WelcomeBriefingService {
 
     private TodayWeatherOutlook toTodayWeatherOutlook(KmaForecastWeatherResponseDto response,
                                                       WelcomeBriefingPolicyDto policy) {
-        if (response.forecasts() == null || response.forecasts().isEmpty()) {
+        List<KmaForecastWeatherResponseDto.Forecast> forecasts = response.forecasts();
+        if (forecasts == null || forecasts.isEmpty()) {
             return new TodayWeatherOutlook(false, false, false, false, null, null, List.of("오늘 예보 데이터가 부족합니다."));
         }
 
+        KmaForecastWeatherResponseDto.Forecast hottest = findHottestForecast(forecasts);
+        WeatherOutlookFlags flags = analyzeWeatherOutlook(forecasts, policy);
+
+        String hottestTime = hottest != null ? hottest.forecastDateTime() : null;
+        String ventilationBestTime = (!flags.rainExpected() && !flags.strongWindExpected()) ? "비/강풍이 없는 시간대" : null;
+
+        return new TodayWeatherOutlook(
+                flags.rainExpected(),
+                flags.rainPossible(),
+                flags.strongWindExpected(),
+                flags.highHumidityExpected(),
+                hottestTime,
+                ventilationBestTime,
+                buildWeatherCautions(flags)
+        );
+    }
+
+    private KmaForecastWeatherResponseDto.Forecast findHottestForecast(List<KmaForecastWeatherResponseDto.Forecast> forecasts) {
+        return forecasts.stream()
+                .max(Comparator.comparingDouble(forecast -> parseDouble(forecast.temperature())))
+                .orElse(null);
+    }
+
+    private WeatherOutlookFlags analyzeWeatherOutlook(List<KmaForecastWeatherResponseDto.Forecast> forecasts,
+                                                      WelcomeBriefingPolicyDto policy) {
         boolean rainExpected = false;
         boolean rainPossible = false;
         boolean strongWindExpected = false;
         boolean highHumidityExpected = false;
+
+        for (KmaForecastWeatherResponseDto.Forecast forecast : forecasts) {
+            rainExpected = rainExpected || isRainExpected(forecast, policy);
+            rainPossible = rainPossible || isRainPossible(forecast, policy);
+            strongWindExpected = strongWindExpected || isStrongWindExpected(forecast, policy);
+            highHumidityExpected = highHumidityExpected || isHighHumidityExpected(forecast, policy);
+        }
+
+        return new WeatherOutlookFlags(rainExpected, rainPossible, strongWindExpected, highHumidityExpected);
+    }
+
+    private boolean isRainExpected(KmaForecastWeatherResponseDto.Forecast forecast,
+                                   WelcomeBriefingPolicyDto policy) {
+        return hasPrecipitation(forecast.precipitationType(), forecast.precipitationAmount())
+                || parseInt(forecast.precipitationProbability()) >= policy.rainExpectedProbability();
+    }
+
+    private boolean isRainPossible(KmaForecastWeatherResponseDto.Forecast forecast,
+                                   WelcomeBriefingPolicyDto policy) {
+        int precipitationProbability = parseInt(forecast.precipitationProbability());
+        return !isRainExpected(forecast, policy)
+                && precipitationProbability >= policy.rainPossibleProbability();
+    }
+
+    private boolean isStrongWindExpected(KmaForecastWeatherResponseDto.Forecast forecast,
+                                         WelcomeBriefingPolicyDto policy) {
+        return parseDouble(forecast.windSpeed()) >= policy.strongWindSpeed();
+    }
+
+    private boolean isHighHumidityExpected(KmaForecastWeatherResponseDto.Forecast forecast,
+                                           WelcomeBriefingPolicyDto policy) {
+        return parseInt(forecast.humidity()) >= policy.highHumidityPercent();
+    }
+
+    private List<String> buildWeatherCautions(WeatherOutlookFlags flags) {
         List<String> cautions = new ArrayList<>();
 
-        KmaForecastWeatherResponseDto.Forecast hottest = response.forecasts().stream()
-                .max(Comparator.comparingDouble(forecast -> parseDouble(forecast.temperature())))
-                .orElse(null);
-
-        for (KmaForecastWeatherResponseDto.Forecast forecast : response.forecasts()) {
-            int precipitationProbability = parseInt(forecast.precipitationProbability());
-            boolean precipitationPresent = hasPrecipitation(forecast.precipitationType(), forecast.precipitationAmount());
-
-            if (precipitationPresent || precipitationProbability >= policy.rainExpectedProbability()) {
-                rainExpected = true;
-            } else if (precipitationProbability >= policy.rainPossibleProbability()) {
-                rainPossible = true;
-            }
-
-            if (parseDouble(forecast.windSpeed()) >= policy.strongWindSpeed()) {
-                strongWindExpected = true;
-            }
-
-            if (parseInt(forecast.humidity()) >= policy.highHumidityPercent()) {
-                highHumidityExpected = true;
-            }
-        }
-
-        if (rainExpected) {
+        if (flags.rainExpected()) {
             cautions.add("비가 예상되어 창문 개방 환기는 주의가 필요합니다.");
-        } else if (rainPossible) {
+        } else if (flags.rainPossible()) {
             cautions.add("비 가능성이 있어 창문 개방 전 외부 날씨 확인이 필요합니다.");
         }
-        if (strongWindExpected) {
+        if (flags.strongWindExpected()) {
             cautions.add("강풍 가능성이 있어 창문 개방을 피하는 것이 좋습니다.");
         }
-        if (highHumidityExpected) {
+        if (flags.highHumidityExpected()) {
             cautions.add("외부 습도가 높을 수 있어 환기 후 실내 습도 확인이 필요합니다.");
         }
 
-        String hottestTime = hottest != null ? hottest.forecastDateTime() : null;
-        String ventilationBestTime = (!rainExpected && !strongWindExpected) ? "비/강풍이 없는 시간대" : null;
-
-        return new TodayWeatherOutlook(
-                rainExpected,
-                rainPossible,
-                strongWindExpected,
-                highHumidityExpected,
-                hottestTime,
-                ventilationBestTime,
-                cautions
-        );
+        return cautions;
     }
 
     private boolean hasPrecipitation(String precipitationType, String precipitationAmount) {
@@ -290,6 +317,14 @@ public class WelcomeBriefingService {
                 && !"0".equals(precipitationType);
         boolean hasAmount = parseDouble(precipitationAmount) > 0.0;
         return hasType || hasAmount;
+    }
+
+    private record WeatherOutlookFlags(
+            boolean rainExpected,
+            boolean rainPossible,
+            boolean strongWindExpected,
+            boolean highHumidityExpected
+    ) {
     }
 
     private LocalDateTime parseDateTime(String value) {

@@ -1,8 +1,8 @@
 package com.nhnacademy.recommendation.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.WelcomeBriefingRequest;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.WelcomeBriefingResponse;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingRequest;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingResponse;
 import com.nhnacademy.recommendation.exception.GlobalExceptionHandler;
 import com.nhnacademy.recommendation.exception.RequiredValueException;
 import com.nhnacademy.recommendation.service.welcomebriefing.WelcomeBriefingService;

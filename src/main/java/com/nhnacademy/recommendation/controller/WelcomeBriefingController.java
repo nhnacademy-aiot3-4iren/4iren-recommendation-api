@@ -1,7 +1,7 @@
 package com.nhnacademy.recommendation.controller;
 
-import com.nhnacademy.recommendation.dto.welcomeBriefing.WelcomeBriefingRequest;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.WelcomeBriefingResponse;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingRequest;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingResponse;
 import com.nhnacademy.recommendation.service.core.CoreRequestValidator;
 import com.nhnacademy.recommendation.service.welcomebriefing.WelcomeBriefingService;
 import lombok.RequiredArgsConstructor;

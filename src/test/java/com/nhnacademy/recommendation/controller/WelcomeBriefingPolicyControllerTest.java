@@ -2,8 +2,8 @@ package com.nhnacademy.recommendation.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nhnacademy.recommendation.dto.UserRole;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.WelcomeBriefingPolicyDto;
-import com.nhnacademy.recommendation.dto.welcomeBriefing.WelcomeBriefingPolicyEnabledRequest;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyDto;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyEnabledRequest;
 import com.nhnacademy.recommendation.entity.WelcomeBriefingPolicy;
 import com.nhnacademy.recommendation.exception.GlobalExceptionHandler;
 import com.nhnacademy.recommendation.exception.PolicyAccessDeniedException;

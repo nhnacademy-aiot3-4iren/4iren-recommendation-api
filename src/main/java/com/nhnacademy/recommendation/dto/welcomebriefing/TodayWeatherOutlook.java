@@ -1,4 +1,4 @@
-package com.nhnacademy.recommendation.dto.welcomeBriefing;
+package com.nhnacademy.recommendation.dto.welcomebriefing;
 
 import java.util.List;
 
