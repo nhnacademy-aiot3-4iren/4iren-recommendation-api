@@ -8,6 +8,8 @@ import com.nhnacademy.recommendation.dto.device.DeviceResponse;
 import com.nhnacademy.recommendation.dto.kma.KmaCurrentWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
+import com.nhnacademy.recommendation.dto.room.RoomDevicesResponse;
+import com.nhnacademy.recommendation.dto.room.RoomRegionResponse;
 import com.nhnacademy.recommendation.dto.room.RoomResponse;
 import com.nhnacademy.recommendation.dto.roomsub.RoomSubscriptionResponse;
 import com.nhnacademy.recommendation.dto.team.TeamResponse;
@@ -27,33 +29,42 @@ public interface CoreClient {
     @GetMapping("/kma/ultraSrtFcst")
     ResponseEntity<KmaForecastWeatherResponseDto> getFcst(@RequestParam("regionName") String regionName);
 
+    @GetMapping("/internal/rooms/{room-id}")
+    RoomDetailResponse getRoom(@PathVariable("room-id") Long roomId);
+
+    @GetMapping("/internal/rooms/{room-id}/region")
+    RoomRegionResponse getRoomRegion(@PathVariable("room-id") Long roomId);
+
+    @GetMapping("/internal/rooms/{room-id}/devices")
+    RoomDevicesResponse getRoomDevices(@PathVariable("room-id") Long roomId);
+
 
     /// 팀에 속한 건물 리스트 조회
-    @GetMapping("/teams/{teamId}/buildings")
-    PageResponse<BuildingResponse> getBuildingListByTeam(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable Long teamId);
+    @GetMapping("/teams/{team-id}/buildings")
+    PageResponse<BuildingResponse> getBuildingListByTeam(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable("team-id") Long teamId);
 
     /// 건물 세부 정보 조회
-    @GetMapping("/teams/{teamId}/buildings/{buildingId}")
-    BuildingDetailResponse getBuildingDetail(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable Long teamId, @PathVariable Long buildingId);
+    @GetMapping("/teams/{team-id}/buildings/{building-id}")
+    BuildingDetailResponse getBuildingDetail(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("building-id") Long buildingId);
 
     /// 건물 내 강의실 리스트 조회
-    @GetMapping("/teams/{teamId}/buildings/{buildingId}/rooms")
-    PageResponse<RoomResponse> getRoomListByBuilding(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable Long teamId, @PathVariable Long buildingId);
+    @GetMapping("/teams/{team-id}/buildings/{building-id}/rooms")
+    PageResponse<RoomResponse> getRoomListByBuilding(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("building-id") Long buildingId);
 
     /// 강의실 세부 정보 조회
-    @GetMapping("/teams/{teamId}/rooms/{roomId}")
-    RoomDetailResponse getRoomDetail(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable Long teamId, @PathVariable Long roomId);
+    @GetMapping("/teams/{team-id}/rooms/{room-id}")
+    RoomDetailResponse getRoomDetail(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("room-id") Long roomId);
 
     /// 사용자의 팀 목록 조회
     @GetMapping("/teams")
     PageResponse<TeamResponse> getTeamsByUser(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role);
 
     /// 사용자의 팀 내 구독중인 방 목록 조회
-    @GetMapping("/teams/{teamId}/room-subscriptions")
-    PageResponse<RoomSubscriptionResponse> getSubscriptions(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable Long teamId);
+    @GetMapping("/teams/{team-id}/room-subscriptions")
+    PageResponse<RoomSubscriptionResponse> getSubscriptions(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable("team-id") Long teamId);
 
     /// 강의실 내 기기 목록 조회
-    @GetMapping("/teams/{teamId}/rooms/{roomId}/devices")
-    PageResponse<DeviceResponse> getDevices(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable Long teamId, @PathVariable Long roomId);
+    @GetMapping("/teams/{team-id}/rooms/{room-id}/devices")
+    PageResponse<DeviceResponse> getDevices(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("room-id") Long roomId);
 
 }

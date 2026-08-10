@@ -4,12 +4,9 @@ import java.util.List;
 
 public record WelcomeBriefingContext(
         RoomInfo room,
-        IndoorEnvironmentPolicy policy,
-        CurrentIndoorSnapshot currentIndoor,
+        IndoorEnvironmentAnalysis indoorEnvironmentAnalysis,
         CurrentWeatherSnapshot currentWeather,
         TodayWeatherOutlook todayWeatherOutlook,
-        YesterdayPatternSummary yesterdayPattern,
-        List<DeviceStatus> devices,
-        List<String> detectedRisks
+        List<DeviceStatus> devices
 ) {
 }

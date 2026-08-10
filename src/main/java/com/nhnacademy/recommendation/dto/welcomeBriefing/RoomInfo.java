@@ -1,10 +1,10 @@
 package com.nhnacademy.recommendation.dto.welcomeBriefing;
 
 public record RoomInfo(
+        Long teamId,
         Long roomId,
         String roomName,
-        Long buildingId,
-        String buildingName,
+        String location,
         String regionName
 ) {
 }

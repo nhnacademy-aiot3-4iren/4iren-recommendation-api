@@ -3,6 +3,8 @@ package com.nhnacademy.recommendation.service.core;
 import com.nhnacademy.recommendation.adaptor.CoreClient;
 import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
+import com.nhnacademy.recommendation.dto.room.RoomDevicesResponse;
+import com.nhnacademy.recommendation.dto.room.RoomRegionResponse;
 import com.nhnacademy.recommendation.dto.room.RoomResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +48,36 @@ public class CoreRoomService {
         } catch (Exception e) {
             log.warn("[CoreRoomService] 강의실 상세 조회 실패. userId={}, role={}, teamId={}, roomId={}",
                     userId, userRole, teamId, roomId, e);
+            throw e;
+        }
+    }
+
+    public RoomDetailResponse getRoomDetailInternal(Long roomId) {
+        requirePositive(roomId, "roomId");
+        try {
+            return coreClient.getRoom(roomId);
+        } catch (Exception e) {
+            log.warn("[CoreRoomService] 강의실 상세 조회 실패 - Internal. roomId={}", roomId, e);
+            throw e;
+        }
+    }
+
+    public RoomRegionResponse getRoomRegion(Long roomId){
+        requirePositive(roomId, "roomId");
+        try {
+            return coreClient.getRoomRegion(roomId);
+        } catch (Exception e) {
+            log.warn("[CoreRoomService] 강의실 지역명 조회 실패 - Internal. roomId={}", roomId, e);
+            throw e;
+        }
+    }
+
+    public RoomDevicesResponse getRoomDevices(Long roomId){
+        requirePositive(roomId, "roomId");
+        try {
+            return coreClient.getRoomDevices(roomId);
+        } catch (Exception e) {
+            log.warn("[CoreRoomService] 강의실 지역명 조회 실패 - Internal. roomId={}", roomId, e);
             throw e;
         }
     }
