@@ -1,4 +1,4 @@
-package com.nhnacademy.recommendation.service;
+package com.nhnacademy.recommendation.service.core;
 
 import com.nhnacademy.recommendation.exception.NotPositiveValueException;
 import com.nhnacademy.recommendation.exception.RequiredValueException;

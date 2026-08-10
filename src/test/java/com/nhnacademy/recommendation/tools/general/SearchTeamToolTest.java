@@ -7,7 +7,7 @@ import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
 import com.nhnacademy.recommendation.dto.team.TeamResponse;
 import com.nhnacademy.recommendation.dto.team.TeamRole;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
-import com.nhnacademy.recommendation.service.CoreTeamService;
+import com.nhnacademy.recommendation.service.core.CoreTeamService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
