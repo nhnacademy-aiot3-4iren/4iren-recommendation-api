@@ -41,30 +41,30 @@ public interface CoreClient {
 
     /// 팀에 속한 건물 리스트 조회
     @GetMapping("/teams/{team-id}/buildings")
-    PageResponse<BuildingResponse> getBuildingListByTeam(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable("team-id") Long teamId);
+    PageResponse<BuildingResponse> getBuildingListByTeam(@RequestHeader("X-USER-ID") Long userId, @RequestHeader("X-USER-ROLE") UserRole role, @PathVariable("team-id") Long teamId);
 
     /// 건물 세부 정보 조회
     @GetMapping("/teams/{team-id}/buildings/{building-id}")
-    BuildingDetailResponse getBuildingDetail(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("building-id") Long buildingId);
+    BuildingDetailResponse getBuildingDetail(@RequestHeader("X-USER-ID") Long userId, @RequestHeader("X-USER-ROLE") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("building-id") Long buildingId);
 
     /// 건물 내 강의실 리스트 조회
     @GetMapping("/teams/{team-id}/buildings/{building-id}/rooms")
-    PageResponse<RoomResponse> getRoomListByBuilding(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("building-id") Long buildingId);
+    PageResponse<RoomResponse> getRoomListByBuilding(@RequestHeader("X-USER-ID") Long userId, @RequestHeader("X-USER-ROLE") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("building-id") Long buildingId);
 
     /// 강의실 세부 정보 조회
     @GetMapping("/teams/{team-id}/rooms/{room-id}")
-    RoomDetailResponse getRoomDetail(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("room-id") Long roomId);
+    RoomDetailResponse getRoomDetail(@RequestHeader("X-USER-ID") Long userId, @RequestHeader("X-USER-ROLE") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("room-id") Long roomId);
 
     /// 사용자의 팀 목록 조회
     @GetMapping("/teams")
-    PageResponse<TeamResponse> getTeamsByUser(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role);
+    PageResponse<TeamResponse> getTeamsByUser(@RequestHeader("X-USER-ID") Long userId, @RequestHeader("X-USER-ROLE") UserRole role);
 
     /// 사용자의 팀 내 구독중인 방 목록 조회
     @GetMapping("/teams/{team-id}/room-subscriptions")
-    PageResponse<RoomSubscriptionResponse> getSubscriptions(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable("team-id") Long teamId);
+    PageResponse<RoomSubscriptionResponse> getSubscriptions(@RequestHeader("X-USER-ID") Long userId, @RequestHeader("X-USER-ROLE") UserRole role, @PathVariable("team-id") Long teamId);
 
     /// 강의실 내 기기 목록 조회
     @GetMapping("/teams/{team-id}/rooms/{room-id}/devices")
-    PageResponse<DeviceResponse> getDevices(@RequestHeader("X-User-Id") Long userId, @RequestHeader("X-User-Role") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("room-id") Long roomId);
+    PageResponse<DeviceResponse> getDevices(@RequestHeader("X-USER-ID") Long userId, @RequestHeader("X-USER-ROLE") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("room-id") Long roomId);
 
 }

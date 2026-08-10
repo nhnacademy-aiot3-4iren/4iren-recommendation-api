@@ -77,7 +77,7 @@ public class CoreRoomService {
         try {
             return coreClient.getRoomDevices(roomId);
         } catch (Exception e) {
-            log.warn("[CoreRoomService] 강의실 지역명 조회 실패 - Internal. roomId={}", roomId, e);
+            log.warn("[CoreRoomService] 강의실 기기 목록 조회 실패 - Internal. roomId={}", roomId, e);
             throw e;
         }
     }
