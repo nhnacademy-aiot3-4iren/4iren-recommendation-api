@@ -1,7 +1,6 @@
 package com.nhnacademy.recommendation.service.core;
 
 import com.nhnacademy.recommendation.adaptor.CoreClient;
-import com.nhnacademy.recommendation.dto.PageResponse;
 import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.roomsub.RoomSubscriptionResponse;
 import com.nhnacademy.recommendation.exception.NotPositiveValueException;
