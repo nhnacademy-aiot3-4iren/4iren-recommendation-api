@@ -59,32 +59,29 @@ jobs:
           docker build -t ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest .
           docker push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
 
-  # 2. 서버에 배포
   deploy:
-    needs: build-and-push # 1번 작업이 끝나고 실행
-    runs-on: self-hosted  # 자체 서버에서 실행
+    needs: build-and-push
+    runs-on: self-hosted
 
     steps:
-      - name: GHCR 로그인 (서버 내부에서 로그인)
+      - name: GHCR 로그인
         run: |
           echo "${{ secrets.DEPLOYKEY }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: 무중단 롤링 배포 실행 (Zero-Downtime)
         run: |
           cd ${{ env.DOCKER_DIR }}
-
-          # 1. 최신 이미지 당겨오기
           docker pull ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
 
-          # 2. 첫 번째 컨테이너(1번) 교체 및 띄우기
           echo "1번 서버 업데이트 시작..."
           docker compose up -d --no-deps ${{ env.IMAGE_NAME }}-1
 
-          echo "1번 서버 구동 대기 중..."
-          # 최대 20번(약 100초) 대기하며 헬스체크
+          echo "스프링부트 초기화 대기 중 (30초)..."
+          sleep 30
+
+          echo "1번 서버 헬스체크 시작..."
           for i in {1..20}; do
             STATUS=$(docker exec ${{ env.IMAGE_NAME }}-1 wget -qO- http://localhost:8080/actuator/health 2>/dev/null | grep '"status":"UP"' || true)
-
             if [ -n "$STATUS" ]; then
               echo "1번 서버 구동 완료!"
               break
@@ -98,14 +95,15 @@ jobs:
             exit 1
           fi
 
-          # 3. 두 번째 컨테이너(2번) 교체 및 띄우기
           echo "2번 서버 업데이트 시작..."
           docker compose up -d --no-deps ${{ env.IMAGE_NAME }}-2
 
-          echo "2번 서버 구동 대기 중..."
+          echo "스프링부트 초기화 대기 중 (30초)..."
+          sleep 30
+
+          echo "2번 서버 헬스체크 시작..."
           for i in {1..20}; do
             STATUS=$(docker exec ${{ env.IMAGE_NAME }}-2 wget -qO- http://localhost:8080/actuator/health 2>/dev/null | grep '"status":"UP"' || true)
-
             if [ -n "$STATUS" ]; then
               echo "2번 서버 구동 완료!"
               break
@@ -118,4 +116,6 @@ jobs:
             echo "2번 서버 구동 실패!"
             exit 1
           fi
+
+          echo "무중단 배포가 완료되었습니다!"
           
