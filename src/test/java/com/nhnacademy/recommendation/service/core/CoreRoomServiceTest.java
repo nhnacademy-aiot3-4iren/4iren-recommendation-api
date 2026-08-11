@@ -1,7 +1,6 @@
 package com.nhnacademy.recommendation.service.core;
 
 import com.nhnacademy.recommendation.adaptor.CoreClient;
-import com.nhnacademy.recommendation.dto.PageResponse;
 import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import com.nhnacademy.recommendation.dto.room.RoomDevicesResponse;
@@ -41,7 +40,7 @@ class CoreRoomServiceTest {
     void getRoomListByBuilding() {
         List<RoomResponse> rooms = List.of(new RoomResponse(20L, 10L, "101호", "강의실 설명"));
         given(coreClient.getRoomListByBuilding(1L, UserRole.NORMAL, 3L, 10L))
-                .willReturn(new PageResponse<>(rooms, 0, 10, 1, 1, true, true));
+                .willReturn(rooms);
 
         List<RoomResponse> result = service.getRoomListByBuilding(1L, UserRole.NORMAL, 3L, 10L);
 

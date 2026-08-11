@@ -24,7 +24,7 @@ public class CoreTeamService {
         requireNonNull(userRole, "userRole");
 
         try {
-            return coreClient.getTeamsByUser(userId, userRole).content();
+            return coreClient.getTeamsByUser(userId, userRole);
         } catch (Exception e) {
             log.warn("[CoreTeamService] 팀 목록 조회 실패. userId={}, role={}", userId, userRole, e);
             throw e;

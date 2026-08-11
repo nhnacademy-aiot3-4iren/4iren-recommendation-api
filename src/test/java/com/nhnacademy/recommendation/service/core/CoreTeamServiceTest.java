@@ -1,7 +1,6 @@
 package com.nhnacademy.recommendation.service.core;
 
 import com.nhnacademy.recommendation.adaptor.CoreClient;
-import com.nhnacademy.recommendation.dto.PageResponse;
 import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.team.TeamResponse;
 import com.nhnacademy.recommendation.dto.team.TeamRole;
@@ -39,7 +38,7 @@ class CoreTeamServiceTest {
     void getTeamsByUser() {
         List<TeamResponse> teams = List.of(new TeamResponse(3L, "3번팀", "3번팀 설명", TeamRole.MEMBER));
         given(coreClient.getTeamsByUser(1L, UserRole.NORMAL))
-                .willReturn(new PageResponse<>(teams, 0, 10, 1, 1, true, true));
+                .willReturn(teams);
 
         List<TeamResponse> result = service.getTeamsByUser(1L, UserRole.NORMAL);
 

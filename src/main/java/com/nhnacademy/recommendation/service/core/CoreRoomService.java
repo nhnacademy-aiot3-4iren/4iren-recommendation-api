@@ -29,7 +29,7 @@ public class CoreRoomService {
         requirePositive(buildingId, "buildingId");
 
         try {
-            return coreClient.getRoomListByBuilding(userId, userRole, teamId, buildingId).content();
+            return coreClient.getRoomListByBuilding(userId, userRole, teamId, buildingId);
         } catch (Exception e) {
             log.warn("[CoreRoomService] 강의실 목록 조회 실패. userId={}, role={}, teamId={}, buildingId={}",
                     userId, userRole, teamId, buildingId, e);

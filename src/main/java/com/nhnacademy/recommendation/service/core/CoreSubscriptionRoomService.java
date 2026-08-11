@@ -25,11 +25,27 @@ public class CoreSubscriptionRoomService {
         requirePositive(teamId, "teamId");
 
         try {
-            return coreClient.getSubscriptions(userId, userRole, teamId).content();
+            return coreClient.getSubscriptions(userId, userRole, teamId);
         } catch (Exception e) {
             log.warn("[CoreSubscriptionRoomService] 구독 강의실 목록 조회 실패. userId={}, role={}, teamId={}",
                     userId, userRole, teamId, e);
             throw e;
         }
+    }
+
+    public RoomSubscriptionResponse subscribeToRoom(Long userId, UserRole userRole, Long teamId, Long roomId) {
+        requirePositive(userId, "userId");
+        requireNonNull(userRole, "userRole");
+        requirePositive(teamId, "teamId");
+        requirePositive(roomId, "roomId");
+
+        try {
+            return coreClient.subscribeToRoom(userId, userRole, teamId, roomId);
+        } catch (Exception e) {
+            log.warn("[CoreSubscriptionRoomService] 구독 실패. userId={}, role={}, teamId={}, roomId={}",
+                    userId, userRole, teamId, roomId, e);
+            throw e;
+        }
+
     }
 }

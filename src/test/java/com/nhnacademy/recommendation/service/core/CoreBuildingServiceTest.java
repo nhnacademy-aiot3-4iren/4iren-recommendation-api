@@ -1,7 +1,6 @@
 package com.nhnacademy.recommendation.service.core;
 
 import com.nhnacademy.recommendation.adaptor.CoreClient;
-import com.nhnacademy.recommendation.dto.PageResponse;
 import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.building.BuildingDetailResponse;
 import com.nhnacademy.recommendation.dto.building.BuildingResponse;
@@ -39,7 +38,7 @@ class CoreBuildingServiceTest {
     void getBuildingList() {
         List<BuildingResponse> buildings = List.of(new BuildingResponse(10L, 3L, "본관", "본관 설명"));
         given(coreClient.getBuildingListByTeam(1L, UserRole.NORMAL, 3L))
-                .willReturn(new PageResponse<>(buildings, 0, 10, 1, 1, true, true));
+                .willReturn(buildings);
 
         List<BuildingResponse> result = service.getBuildingList(1L, UserRole.NORMAL, 3L);
 
