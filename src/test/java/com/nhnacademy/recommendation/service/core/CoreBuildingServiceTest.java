@@ -39,7 +39,7 @@ class CoreBuildingServiceTest {
     void getBuildingList() {
         List<BuildingResponse> buildings = List.of(new BuildingResponse(10L, 3L, "본관", "본관 설명"));
         given(coreClient.getBuildingListByTeam(1L, UserRole.NORMAL, 3L))
-                .willReturn(new PageResponse<>(buildings, 0, 10, 1, 1, true, true));
+                .willReturn(buildings);
 
         List<BuildingResponse> result = service.getBuildingList(1L, UserRole.NORMAL, 3L);
 

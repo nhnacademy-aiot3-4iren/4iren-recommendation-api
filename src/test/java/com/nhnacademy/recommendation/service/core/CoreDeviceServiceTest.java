@@ -38,7 +38,7 @@ class CoreDeviceServiceTest {
     void getDeviceListByRoom() {
         List<DeviceResponse> devices = List.of(new DeviceResponse(1L, 20L, "환기장치"));
         given(coreClient.getDevices(1L, UserRole.NORMAL, 3L, 20L))
-                .willReturn(new PageResponse<>(devices, 0, 10, 1, 1, true, true));
+                .willReturn(devices);
 
         List<DeviceResponse> result = service.getDeviceListByRoom(1L, UserRole.NORMAL, 3L, 20L);
 

@@ -25,7 +25,7 @@ public class CoreDeviceService {
         requirePositive(teamId, "teamId");
         requirePositive(roomId, "roomId");
         try {
-            return coreClient.getDevices(userId, role, teamId, roomId).content();
+            return coreClient.getDevices(userId, role, teamId, roomId);
         } catch (Exception e) {
             log.warn("[CoreDeviceService] 강의실 내 기기 목록 조회 실패. userId={}, role={}, teamId={}, roomId={}", userId, role, teamId, roomId, e);
             throw e;

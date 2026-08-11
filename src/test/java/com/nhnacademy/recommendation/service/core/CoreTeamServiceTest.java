@@ -39,7 +39,7 @@ class CoreTeamServiceTest {
     void getTeamsByUser() {
         List<TeamResponse> teams = List.of(new TeamResponse(3L, "3번팀", "3번팀 설명", TeamRole.MEMBER));
         given(coreClient.getTeamsByUser(1L, UserRole.NORMAL))
-                .willReturn(new PageResponse<>(teams, 0, 10, 1, 1, true, true));
+                .willReturn(teams);
 
         List<TeamResponse> result = service.getTeamsByUser(1L, UserRole.NORMAL);
 
