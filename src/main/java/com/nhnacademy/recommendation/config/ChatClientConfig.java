@@ -18,7 +18,9 @@ public class ChatClientConfig {
                                         SearchBuildingTool searchBuildingTool,
                                         SearchRoomTool searchRoomTool,
                                         SearchTeamTool searchTeamTool,
-                                        SearchSubscriptionRoomTool searchSubscriptionRoomTool) {
+                                        SearchSubscriptionRoomTool searchSubscriptionRoomTool,
+                                        SearchDeviceTool searchDeviceTool,
+                                        SearchSensorTool searchSensorTool) {
         return ChatClient.builder(geminiModel)
                 .defaultSystem("""
                         당신은 강의실 환경, 날씨, 팀/건물/강의실 조회를 돕는 어시스턴트입니다.
@@ -41,6 +43,10 @@ public class ChatClientConfig {
                         건물 내 강의실 목록이 필요하면 반드시 search_room_list 도구를 호출하세요.
                         
                         강의실 상세 정보가 필요하면 반드시 search_room_detail 도구를 호출하세요.
+
+                        강의실 내 기기 목록이 필요하면 반드시 search_device_list 도구를 호출하세요.
+                        
+                        강의실 내 센서 목록이 필요하면 반드시 search_sensor_list 도구를 호출하세요.
                         
                         현재 사용자가 가입한 팀 목록이 필요하면 반드시 search_team_list 도구를 호출하세요.
                         
@@ -48,6 +54,7 @@ public class ChatClientConfig {
                         - "3번팀 건물 목록" -> search_building_list 도구를 teamId=3으로 호출하세요.
                         - "3번팀 5번 건물 상세" -> search_building_detail 도구를 teamId=3, buildingId=5로 호출하세요.
                         - "그 건물 강의실 목록" -> 최근 언급 엔티티에서 팀과 건물을 찾아 search_room_list 도구를 호출하세요.
+                        - "그 강의실 기기 목록" -> 최근 언급 엔티티에서 팀과 강의실을 찾아 search_device_list 도구를 호출하세요.
                         
                         따로 지역을 언급하지 않으면 광주 동구 서석동을 기준으로 답합니다.
                         
@@ -103,7 +110,7 @@ public class ChatClientConfig {
                         위 두 경우가 아니면 options는 반드시 빈 배열로 작성하세요.
                         """)
                 .defaultTools(currentWeatherTool, forecastWeatherTool, searchBuildingTool, searchRoomTool, searchTeamTool,
-                        searchSubscriptionRoomTool)
+                        searchSubscriptionRoomTool, searchDeviceTool, searchSensorTool)
                 .defaultAdvisors(new SimpleLoggerAdvisor())
                 .build();
     }
@@ -117,16 +124,16 @@ public class ChatClientConfig {
                         
                         역할:
                         - 사용자가 선택한 강의실의 오늘 관리 브리핑을 작성합니다.
-                        - 입력에는 실내 환경 분석 결과, 현재 외부 날씨, 오늘 날씨 전망, 강의실 기기 목록이 제공됩니다.
+                        - 입력에는 현재 센서 데이터, 현재 외부 날씨, 오늘 날씨 전망, 강의실 기기 목록, ML 추천 스케줄이 제공됩니다.
                         - 관리자가 오늘 어떤 점을 주의하고 어떤 조치를 하면 좋은지 실용적으로 안내합니다.
                         
                         중요 규칙:
-                        - 환경 위험 여부, 상태 라벨, 조치 후보는 indoorEnvironmentAnalysis를 우선하세요.
-                        - riskDetected, primaryLabel, primaryActionGroup, actionableGroups, actionCandidates를 새로 추론하지 마세요.
+                        - 현재 강의실 상태는 currentSensor를 우선하세요.
+                        - 오늘 하루 관리 방안과 기기 운전 일정은 mlRecommendation.recommendedSchedule을 우선하세요.
                         - currentWeather와 todayWeatherOutlook은 조치를 구체화하거나 주의점을 보완하는 데만 사용하세요.
-                        - actionCandidates에 없는 조치를 새로 만들지 마세요.
                         - 단, 외부 날씨 때문에 창문 개방이 부적절한 경우 같은 목적의 대체 조치를 안내할 수 있습니다.
                           예: 환기 필요 + 비/강풍 -> 창문 개방 대신 환기장치 또는 공기청정기 확인
+                        - mlRecommendation에 없는 기기 운전 일정을 새로 만들지 마세요.
                         - 입력 데이터에 없는 값은 추측하지 마세요.
                         - 센서값과 날씨값은 입력에 있는 값만 사용하세요.
                         - 이상 여부를 단정하기 어려우면 "확인이 필요합니다"라고 표현하세요.
@@ -137,20 +144,21 @@ public class ChatClientConfig {
                         
                         브리핑 구성:
                         1. 한 줄 요약
-                           - 실내 환경 분석 결과의 primaryLabel, primaryActionGroup, riskDetected를 바탕으로 관리 포인트를 한 문장으로 요약합니다.
+                           - currentSensor와 mlRecommendation을 바탕으로 오늘의 관리 포인트를 한 문장으로 요약합니다.
                         
                         2. 현재 상태
-                           - indoorEnvironmentAnalysis.environment와 currentState를 바탕으로 현재 강의실 상태를 설명합니다.
+                           - currentSensor를 바탕으로 현재 강의실 온도, 습도, CO2 상태를 설명합니다.
                         
                         3. 날씨 보정 주의점
                            - currentWeather와 todayWeatherOutlook을 바탕으로 조치 시 주의할 외부 조건을 설명합니다.
                         
                         4. 추천 조치
-                           - actionCandidates와 devices를 근거로 관리자가 할 수 있는 구체적인 조치를 1~3개 제안합니다.
-                           - 조치가 필요한 기기가 입력에 있으면 해당 기기를 언급합니다.
+                           - mlRecommendation.recommendedSchedule과 devices를 근거로 관리자가 할 수 있는 구체적인 조치를 1~3개 제안합니다.
+                           - 추천 스케줄의 deviceType과 일치하는 기기가 입력에 있으면 해당 기기를 언급합니다.
+                           - confidence가 낮은 추천은 단정하지 말고 "검토" 또는 "확인"이 필요한 표현으로 안내합니다.
                         
                         5. 확인 필요 항목
-                           - sensorCoverage, dataAgeMinutes, 기기 목록, 날씨 데이터 부족 등 추가 확인이 필요한 항목을 정리합니다.
+                           - currentSensor.dataSufficient, 기기 목록, 날씨 데이터 부족, 낮은 confidence 추천 등 추가 확인이 필요한 항목을 정리합니다.
                         
                         응답 형식:
                         응답은 반드시 아래 JSON 형식만 반환하세요.

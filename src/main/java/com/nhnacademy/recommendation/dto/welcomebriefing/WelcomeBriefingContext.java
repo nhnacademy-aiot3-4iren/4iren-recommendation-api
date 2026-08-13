@@ -4,9 +4,10 @@ import java.util.List;
 
 public record WelcomeBriefingContext(
         RoomInfo room,
-        IndoorEnvironmentAnalysis indoorEnvironmentAnalysis,
+        CurrentSensorSnapshot currentSensor,
         CurrentWeatherSnapshot currentWeather,
         TodayWeatherOutlook todayWeatherOutlook,
-        List<DeviceStatus> devices
+        List<DeviceStatus> devices,
+        WelcomeBriefingMlRecommendation mlRecommendation
 ) {
 }

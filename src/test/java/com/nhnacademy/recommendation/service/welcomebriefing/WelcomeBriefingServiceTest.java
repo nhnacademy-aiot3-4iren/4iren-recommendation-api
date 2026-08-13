@@ -63,7 +63,7 @@ class WelcomeBriefingServiceTest {
     }
 
     @Test
-    @DisplayName("더미 실내 환경 분석 결과와 조회 데이터를 조합해 LLM 웰컴 브리핑을 생성한다")
+    @DisplayName("현재 센서 데이터와 ML 추천 스케줄, 조회 데이터를 조합해 LLM 웰컴 브리핑을 생성한다")
     void generateWelcomeBriefing() {
         RoomDetailResponse room = new RoomDetailResponse(10L, 100L, "본관", "101호", "실습실", 0L, 0L);
         RoomRegionResponse region = new RoomRegionResponse(10L, "광주");
@@ -125,10 +125,10 @@ class WelcomeBriefingServiceTest {
                 )
         );
         WelcomeBriefingResponse expected = new WelcomeBriefingResponse(
-                "CO2 상승으로 환기가 필요합니다.",
-                "현재 CO2가 빠르게 상승 중입니다.",
+                "현재 CO2 상태와 오늘 기기 운전 스케줄을 확인해야 합니다.",
+                "현재 CO2는 980ppm입니다.",
                 "비와 강풍 가능성이 있어 창문 개방은 주의가 필요합니다.",
-                List.of("환기장치를 점검하세요."),
+                List.of("12:00~12:30 환기장치 사용을 검토하세요."),
                 List.of("센서 수신 상태를 확인하세요.")
         );
 
@@ -148,8 +148,11 @@ class WelcomeBriefingServiceTest {
 
         assertThat(result).isEqualTo(expected);
         verify(requestSpec).user(org.mockito.ArgumentMatchers.<String>argThat(prompt ->
-                prompt.contains("\"indoorEnvironmentAnalysis\"")
-                        && prompt.contains("\"primaryLabel\":\"CO2_RISING_FAST\"")
+                prompt.contains("\"currentSensor\"")
+                        && prompt.contains("\"co2Ppm\":980.0")
+                        && prompt.contains("\"mlRecommendation\"")
+                        && prompt.contains("\"recommendationType\":\"DAILY_DEVICE_USAGE_SCHEDULE\"")
+                        && prompt.contains("\"deviceType\":\"VENTILATION\"")
                         && prompt.contains("\"todayWeatherOutlook\"")
                         && prompt.contains("비가 예상되어 창문 개방 환기는 주의가 필요합니다.")
                         && prompt.contains("강풍 가능성이 있어 창문 개방을 피하는 것이 좋습니다.")
