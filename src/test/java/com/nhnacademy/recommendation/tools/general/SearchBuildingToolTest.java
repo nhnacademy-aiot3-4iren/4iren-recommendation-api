@@ -8,9 +8,9 @@ import com.nhnacademy.recommendation.dto.llm.LlmConversationContext;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
 import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
-import com.nhnacademy.recommendation.service.core.CoreBuildingService;
 import com.nhnacademy.recommendation.service.LlmConversationContextService;
 import com.nhnacademy.recommendation.service.MentionedEntityResolver;
+import com.nhnacademy.recommendation.service.core.CoreBuildingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,7 +51,7 @@ class SearchBuildingToolTest {
     @Test
     @DisplayName("팀 ID가 있으면 Core API로 건물 목록을 조회하고 성공 ToolResult를 반환한다")
     void getBuildingListByTeamSuccess() {
-        List<BuildingResponse> buildings = List.of(new BuildingResponse(10L, 3L, "본관", "본관 설명"));
+        List<BuildingResponse> buildings = List.of(new BuildingResponse(10L, 3L, "본관", "본관 설명", "도로명주소", "상세주소", "광주"));
 
         given(contextHolder.get()).willReturn(context);
         given(mentionedEntityResolver.resolve(3L, MentionedEntityType.TEAM)).willReturn(3L);

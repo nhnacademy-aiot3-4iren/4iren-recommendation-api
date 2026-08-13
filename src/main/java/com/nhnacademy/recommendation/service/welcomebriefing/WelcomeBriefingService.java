@@ -7,14 +7,7 @@ import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import com.nhnacademy.recommendation.dto.room.RoomDevicesResponse;
 import com.nhnacademy.recommendation.dto.room.RoomRegionResponse;
-import com.nhnacademy.recommendation.dto.welcomebriefing.CurrentWeatherSnapshot;
-import com.nhnacademy.recommendation.dto.welcomebriefing.DeviceStatus;
-import com.nhnacademy.recommendation.dto.welcomebriefing.IndoorEnvironmentAnalysis;
-import com.nhnacademy.recommendation.dto.welcomebriefing.RoomInfo;
-import com.nhnacademy.recommendation.dto.welcomebriefing.TodayWeatherOutlook;
-import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingContext;
-import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingResponse;
-import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyDto;
+import com.nhnacademy.recommendation.dto.welcomebriefing.*;
 import com.nhnacademy.recommendation.service.core.CoreRequestValidator;
 import com.nhnacademy.recommendation.service.core.CoreRoomService;
 import com.nhnacademy.recommendation.service.core.CoreWeatherService;
@@ -23,18 +16,12 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
-import java.time.DayOfWeek;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @Slf4j
@@ -62,10 +49,11 @@ public class WelcomeBriefingService {
         CoreRequestValidator.requirePositive(teamId, "teamId");
         CoreRequestValidator.requirePositive(roomId, "roomId");
 
-        // 1. 실내 환경 분석 API를 호출한다.
-        //    - 센서 기반 위험 여부, 상태 라벨, 조치 후보는 실내 환경 분석 결과를 우선한다.
-        //    - recommendation은 환경 상태를 다시 판정하지 않는다.
-        IndoorEnvironmentAnalysis analysis = fetchIndoorEnvironmentAnalysis(roomId);
+        // 1. 현재 센서 데이터와 ML 추천 스케줄을 조회한다.
+        //    - 현재 센서 데이터는 조회 시점의 즉시 주의사항 판단에 사용한다.
+        //    - ML 추천 스케줄은 이전 센서 데이터와 과거 기기 작동 이력을 반영한 오늘 관리 방안으로 사용한다.
+        CurrentSensorSnapshot currentSensor = fetchCurrentSensorSnapshot(roomId);
+        WelcomeBriefingMlRecommendation mlRecommendation = fetchMlRecommendation(roomId);
 
         // 2. 스케줄러/내부 작업 전용 Core API로 강의실, 지역명, 기기 정보를 조회한다.
         //    - 이 흐름은 사용자 요청이 아니므로 userId, userRole을 받지 않는다.
@@ -80,24 +68,25 @@ public class WelcomeBriefingService {
         WelcomeBriefingPolicyDto briefingPolicy = welcomeBriefingPolicyService.getPolicyOrDefault(teamId, roomId);
 
         // 4. 강의실 지역명 기준으로 외부 날씨와 오늘 예보를 조회한다.
-        //    - 외부 날씨는 실내 환경 분석 결과의 조치 후보를 구체화하거나 주의점을 보완하는 데만 사용한다.
+        //    - 외부 날씨는 현재 센서 상태와 ML 추천 스케줄을 보정하거나 주의점을 보완하는 데만 사용한다.
         //    - 예: 환기 필요 + 비/강풍 -> 창문 개방 대신 환기장치 또는 공기청정기 확인.
         KmaCurrentWeatherResponseDto currentWeather = weatherService.getCurrentWeather(roomRegion.regionName());
         KmaForecastWeatherResponseDto forecastWeather = weatherService.getForecastWeather(roomRegion.regionName());
 
         // 5. LLM 전달용 컨텍스트를 구성한다.
-        //    - 실내 환경 분석 DTO는 원본 구조를 최대한 유지한다.
+        //    - 현재 센서 데이터와 ML 추천 스케줄은 원본 의미를 분리해서 전달한다.
         //    - 날씨/예보/기기 목록은 조치 실행 가능성과 주의점 보강용 맥락이다.
         WelcomeBriefingContext context = new WelcomeBriefingContext(
-                toRoomInfo(teamId, room, roomRegion, analysis),
-                analysis,
+                toRoomInfo(teamId, room, roomRegion, mlRecommendation),
+                currentSensor,
                 toCurrentWeatherSnapshot(currentWeather),
                 toTodayWeatherOutlook(forecastWeather, briefingPolicy),
-                toDeviceStatuses(devices)
+                toDeviceStatuses(devices),
+                mlRecommendation
         );
 
         // 6. LLM은 주어진 컨텍스트를 브리핑 문장으로 정리한다.
-        //    - 환경 위험 판단과 조치 후보는 실내 환경 분석 결과를 우선한다.
+        //    - 현재 상태는 currentSensor를 우선하고, 하루 관리 방안은 mlRecommendation을 우선한다.
         //    - 입력에 없는 수치나 상태는 생성하지 않도록 시스템 프롬프트에서 제한한다.
         return chatClient.prompt()
                 .user(toJson(context))
@@ -105,98 +94,69 @@ public class WelcomeBriefingService {
                 .entity(WelcomeBriefingResponse.class);
     }
 
-    private IndoorEnvironmentAnalysis fetchIndoorEnvironmentAnalysis(Long roomId) {
-        // TODO: 실내 환경 분석 API 호출로 교체한다.
-        // 예: indoorEnvironmentAnalysisClient.getWelcomeBriefingAnalysis(roomId)
-        return new IndoorEnvironmentAnalysis(
-                new IndoorEnvironmentAnalysis.TimeContext(
-                        OffsetDateTime.of(2026, 8, 10, 8, 0, 0, 0, ZoneOffset.of("+09:00")),
-                        OffsetDateTime.of(2026, 8, 10, 8, 0, 3, 0, ZoneOffset.of("+09:00")),
-                        "Asia/Seoul",
-                        "+09:00",
-                        LocalDate.of(2026, 8, 10),
-                        LocalTime.of(8, 0),
-                        8,
-                        DayOfWeek.MONDAY,
-                        0,
-                        0.1
-                ),
+    private CurrentSensorSnapshot fetchCurrentSensorSnapshot(Long roomId) {
+        // TODO: 현재 센서 데이터 조회 API 호출로 교체한다.
+        // 예: sensorClient.getCurrentSensorSnapshot(roomId)
+        return new CurrentSensorSnapshot(
                 roomId,
-                "실습실",
-                10,
-                new IndoorEnvironmentAnalysis.EnvironmentSummary(
-                        25.0,
-                        0.6,
-                        42.0,
-                        -2.0,
-                        980.0,
-                        1100.0,
-                        250.0
+                OffsetDateTime.of(2026, 8, 10, 8, 0, 0, 0, ZoneOffset.of("+09:00")),
+                25.0,
+                42.0,
+                980.0,
+                4,
+                4,
+                true
+        );
+    }
+
+    private WelcomeBriefingMlRecommendation fetchMlRecommendation(Long roomId) {
+        // TODO: ML 추천 스케줄 API 호출로 교체한다.
+        // 예: mlRecommendationClient.getDailyDeviceUsageSchedule(roomId)
+        return new WelcomeBriefingMlRecommendation(
+                "4iren.welcome-briefing.behavior.v1",
+                new WelcomeBriefingMlRecommendation.Context(
+                        LocalDate.of(2026, 8, 10),
+                        DayOfWeek.MONDAY,
+                        roomId,
+                        "실습실",
+                        "Asia/Seoul"
                 ),
-                new IndoorEnvironmentAnalysis.SensorCoverage(
-                        4,
-                        4,
-                        3,
-                        1.0,
-                        true,
-                        Map.of(
-                                "temperature", new IndoorEnvironmentAnalysis.MeasurementCoverage(4, 4, 1.0),
-                                "humidity", new IndoorEnvironmentAnalysis.MeasurementCoverage(4, 4, 1.0),
-                                "co2", new IndoorEnvironmentAnalysis.MeasurementCoverage(4, 4, 1.0)
+                "DAILY_DEVICE_USAGE_SCHEDULE",
+                List.of(
+                        new WelcomeBriefingMlRecommendation.RecommendedSchedule(
+                                "AIR_CONDITIONER",
+                                "ON",
+                                LocalTime.of(8, 30),
+                                LocalTime.of(22, 0),
+                                0.3099
+                        ),
+                        new WelcomeBriefingMlRecommendation.RecommendedSchedule(
+                                "VENTILATION",
+                                "ON",
+                                LocalTime.of(12, 0),
+                                LocalTime.of(12, 30),
+                                0.9414
+                        ),
+                        new WelcomeBriefingMlRecommendation.RecommendedSchedule(
+                                "AIR_CONDITIONER",
+                                "OFF",
+                                LocalTime.of(22, 0),
+                                null,
+                                0.1596
                         )
-                ),
-                new IndoorEnvironmentAnalysis.CurrentState(
-                        "DOMINANT",
-                        "CO2_RISING_FAST",
-                        "VENTILATE",
-                        true,
-                        true,
-                        3,
-                        3,
-                        4,
-                        4,
-                        3,
-                        1.0,
-                        true,
-                        Map.of("CO2_RISING_FAST", 3, "NO_ACTION", 1),
-                        Map.of("VENTILATE", 3, "HOLD", 1),
-                        List.of("VENTILATE")
-                ),
-                new IndoorEnvironmentAnalysis.LocationPreference(
-                        23.5,
-                        0.0,
-                        "HIGH",
-                        "SUPPORTED_ZERO_CROSSING",
-                        61,
-                        28,
-                        5,
-                        4.35,
-                        0.465,
-                        0.079,
-                        null,
-                        0.0,
-                        "LOW",
-                        "NO_SUPPORTED_ZERO_CROSSING",
-                        77,
-                        29,
-                        13,
-                        11.79,
-                        0.702,
-                        -0.009
-                ),
-                List.of("VENTILATION_INCREASE")
+                )
         );
     }
 
     private RoomInfo toRoomInfo(Long teamId,
                                 RoomDetailResponse room,
                                 RoomRegionResponse roomRegion,
-                                IndoorEnvironmentAnalysis analysis) {
+                                WelcomeBriefingMlRecommendation mlRecommendation) {
         return new RoomInfo(
                 teamId,
                 room.roomId(),
                 room.roomName(),
-                analysis.location(),
+                mlRecommendation.context().location(),
                 roomRegion.regionName()
         );
     }

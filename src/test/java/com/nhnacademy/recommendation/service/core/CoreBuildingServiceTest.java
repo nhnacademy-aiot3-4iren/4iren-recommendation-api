@@ -36,7 +36,7 @@ class CoreBuildingServiceTest {
     @Test
     @DisplayName("건물 목록 조회 성공")
     void getBuildingList() {
-        List<BuildingResponse> buildings = List.of(new BuildingResponse(10L, 3L, "본관", "본관 설명"));
+        List<BuildingResponse> buildings = List.of(new BuildingResponse(10L, 3L, "본관", "본관 설명", "도로명주소", "상세주소", "광주"));
         given(coreClient.getBuildingListByTeam(1L, UserRole.NORMAL, 3L))
                 .willReturn(buildings);
 
