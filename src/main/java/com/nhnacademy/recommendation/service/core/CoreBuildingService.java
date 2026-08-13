@@ -41,7 +41,7 @@ public class CoreBuildingService {
         requireNonNull(userRole, "userRole");
 
         try {
-            return coreClient.getBuildingListByTeam(userId, userRole, teamId).content();
+            return coreClient.getBuildingListByTeam(userId, userRole, teamId);
         } catch (Exception e) {
             log.warn("[CoreBuildingService] 건물 목록 조회 실패. userId={}, role={}, teamId={}",
                     userId, userRole, teamId, e);

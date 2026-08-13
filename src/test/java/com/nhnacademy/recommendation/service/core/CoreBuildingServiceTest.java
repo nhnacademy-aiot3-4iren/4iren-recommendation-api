@@ -1,7 +1,6 @@
 package com.nhnacademy.recommendation.service.core;
 
 import com.nhnacademy.recommendation.adaptor.CoreClient;
-import com.nhnacademy.recommendation.dto.PageResponse;
 import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.building.BuildingDetailResponse;
 import com.nhnacademy.recommendation.dto.building.BuildingResponse;
@@ -37,9 +36,9 @@ class CoreBuildingServiceTest {
     @Test
     @DisplayName("건물 목록 조회 성공")
     void getBuildingList() {
-        List<BuildingResponse> buildings = List.of(new BuildingResponse(10L, 3L, "본관", "본관 설명"));
+        List<BuildingResponse> buildings = List.of(new BuildingResponse(10L, 3L, "본관", "본관 설명", "도로명주소", "상세주소", "광주"));
         given(coreClient.getBuildingListByTeam(1L, UserRole.NORMAL, 3L))
-                .willReturn(new PageResponse<>(buildings, 0, 10, 1, 1, true, true));
+                .willReturn(buildings);
 
         List<BuildingResponse> result = service.getBuildingList(1L, UserRole.NORMAL, 3L);
 

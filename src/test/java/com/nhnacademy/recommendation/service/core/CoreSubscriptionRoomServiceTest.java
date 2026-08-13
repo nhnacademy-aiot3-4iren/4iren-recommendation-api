@@ -1,7 +1,6 @@
 package com.nhnacademy.recommendation.service.core;
 
 import com.nhnacademy.recommendation.adaptor.CoreClient;
-import com.nhnacademy.recommendation.dto.PageResponse;
 import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.roomsub.RoomSubscriptionResponse;
 import com.nhnacademy.recommendation.exception.NotPositiveValueException;
@@ -38,7 +37,7 @@ class CoreSubscriptionRoomServiceTest {
     void getSubscriptions() {
         List<RoomSubscriptionResponse> subscriptions = List.of(new RoomSubscriptionResponse(1L, 20L, true));
         given(coreClient.getSubscriptions(1L, UserRole.NORMAL, 3L))
-                .willReturn(new PageResponse<>(subscriptions, 0, 10, 1, 1, true, true));
+                .willReturn(subscriptions);
 
         List<RoomSubscriptionResponse> result = service.getSubscriptions(1L, UserRole.NORMAL, 3L);
 
