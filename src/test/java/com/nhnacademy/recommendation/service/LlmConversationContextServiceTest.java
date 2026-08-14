@@ -3,10 +3,10 @@ package com.nhnacademy.recommendation.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
+import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.building.BuildingDetailResponse;
-import com.nhnacademy.recommendation.dto.llm.LlmConversationContext;
-import com.nhnacademy.recommendation.dto.llm.MentionedEntityDto;
-import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
+import com.nhnacademy.recommendation.dto.llm.*;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,15 +27,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class LlmConversationContextServiceTest {
 
     private static final String KEY = "llm:conversation-context:1";
+    private static final String TELEGRAM_ROOM_KEY = "telegram:last-mentioned-room:1";
     private static final Duration TTL = Duration.ofMinutes(20);
 
     @Mock
@@ -186,6 +184,43 @@ class LlmConversationContextServiceTest {
 
         verify(valueOperations, never()).set(eq(KEY), org.mockito.ArgumentMatchers.anyString(), eq(TTL));
         verifyNoMoreInteractions(valueOperations);
+    }
+
+    @Test
+    @DisplayName("텔레그램 요청의 mention 저장은 recommendation에서 Redis에 쓰지 않는다")
+    void telegramRequestDoesNotSaveMention() {
+        LlmRequestContextHolder contextHolder = new LlmRequestContextHolder();
+        LlmConversationContextService telegramService = new LlmConversationContextService(
+                stringRedisTemplate,
+                objectMapper,
+                contextHolder
+        );
+        contextHolder.set(new LlmRequestContext(
+                1L,
+                UserRole.NORMAL,
+                LlmConversationContext.empty(),
+                RequestSource.TELEGRAM,
+                List.of()
+        ));
+
+        try {
+            telegramService.saveRoomMention(1L, 20L, "201호");
+
+            verify(valueOperations, never()).set(eq(TELEGRAM_ROOM_KEY), eq("20"), eq(TTL));
+            verify(valueOperations, never()).set(eq(KEY), org.mockito.ArgumentMatchers.anyString(), eq(TTL));
+        } finally {
+            contextHolder.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("텔레그램 최근 언급 강의실 키에서 roomId를 조회한다")
+    void findTelegramLastMentionedRoomId() {
+        given(valueOperations.get(TELEGRAM_ROOM_KEY)).willReturn("20");
+
+        Long result = service.findTelegramLastMentionedRoomId(1L);
+
+        assertThat(result).isEqualTo(20L);
     }
 
     private void useRedisValue(String initialValue) {
