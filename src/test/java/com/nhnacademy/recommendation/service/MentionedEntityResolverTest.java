@@ -2,10 +2,7 @@ package com.nhnacademy.recommendation.service;
 
 import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
 import com.nhnacademy.recommendation.dto.UserRole;
-import com.nhnacademy.recommendation.dto.llm.LlmConversationContext;
-import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
-import com.nhnacademy.recommendation.dto.llm.MentionedEntityDto;
-import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
+import com.nhnacademy.recommendation.dto.llm.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -77,6 +74,24 @@ class MentionedEntityResolverTest {
         Long result = resolver.resolve(null, MentionedEntityType.ROOM);
 
         assertThat(result).isEqualTo(20L);
+    }
+
+    @Test
+    @DisplayName("텔레그램 요청은 웹 Redis 대화 컨텍스트 fallback을 사용하지 않는다")
+    void resolveTelegramDoesNotUseWebRedisContext() {
+        MentionedEntityResolver resolver = new MentionedEntityResolver(contextHolder, conversationContextService);
+        contextHolder.set(new LlmRequestContext(
+                1L,
+                UserRole.NORMAL,
+                LlmConversationContext.empty(),
+                RequestSource.TELEGRAM,
+                List.of()
+        ));
+
+        Long result = resolver.resolve(null, MentionedEntityType.ROOM);
+
+        assertThat(result).isNull();
+        verifyNoInteractions(conversationContextService);
     }
 
     @Test

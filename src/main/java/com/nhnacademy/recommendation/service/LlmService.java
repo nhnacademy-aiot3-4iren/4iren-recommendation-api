@@ -33,7 +33,7 @@ public class LlmService {
         this.objectMapper = objectMapper;
     }
 
-    public LlmResponseDto answer(Long headerUserId, UserRole role, LlmRequestDto request) {
+    public LlmResponseDto answer(Long headerUserId, UserRole role, String clientType, LlmRequestDto request) {
         try (TimingLog.Timer ignored = TimingLog.start(log, "[Timing][Request] total")) {
             LocalDateTime receivedAt = LocalDateTime.now();
             if (request == null || request.message() == null || request.message().isBlank()) {
@@ -41,14 +41,17 @@ public class LlmService {
             }
             Long userId = headerUserId;
             UserRole resolvedRole = role == null ? UserRole.NORMAL : role;
-            LlmConversationContext conversationContext = resolveConversationContext(userId, request);
+            RequestSource source = RequestSource.from(clientType);
+            LlmConversationContext conversationContext = resolveConversationContext(userId, source);
 
-            log.info("User ID: {}", userId);
+            log.info("User ID: {}, requestSource: {}", userId, source);
             try {
-                llmConversationContextService.save(userId, conversationContext);
-                llmRequestContextHolder.set(new LlmRequestContext(userId, resolvedRole, conversationContext));
+                llmRequestContextHolder.set(new LlmRequestContext(userId, resolvedRole, conversationContext, source, request.roomSubInfo()));
                 String userPrompt = """
                         최근 언급 엔티티:
+                        %s
+                        
+                        구독 중인 강의실:
                         %s
                         
                         최근 대화:
@@ -58,6 +61,7 @@ public class LlmService {
                         %s
                         """.formatted(
                         formatRecentMentions(conversationContext),
+                        formatRoomSubInfo(request.roomSubInfo()),
                         formatRecentConversation(conversationContext),
                         request.message()
                 );
@@ -70,13 +74,16 @@ public class LlmService {
 
                 AnswerDto answer = TimingLog.measure(log, "[Timing][LLM] AnswerDto parse", () -> parseAnswer(rawAnswer));
 
-                TimingLog.run(log, "[Timing][Redis] save last exchange", () -> {
-                    LlmConversationContext latestContext = llmConversationContextService.find(userId);
-                    llmConversationContextService.save(userId, latestContext.withLastExchange(request.message(), answer.answer()));
-                });
+                if (source == RequestSource.WEB) {
+                    TimingLog.run(log, "[Timing][Redis] save last exchange", () -> {
+                        LlmConversationContext latestContext = llmConversationContextService.find(userId);
+                        llmConversationContextService.save(userId, latestContext.withLastExchange(request.message(), answer.answer()));
+                    });
+                }
 
                 LlmResponseDto answerDto = new LlmResponseDto(request.message(), answer, request.requestedAt(), receivedAt);
                 answerDto.setUserId(userId);
+                conversationContext.findRecentEntityId(MentionedEntityType.ROOM).ifPresent(answerDto::setRoomId);
                 return answerDto;
             } finally {
                 llmRequestContextHolder.clear();
@@ -113,12 +120,16 @@ public class LlmService {
         return stripped.replaceFirst("\\s*```$", "").trim();
     }
 
-    private LlmConversationContext resolveConversationContext(Long userId, LlmRequestDto request) {
-        LlmConversationContext context = llmConversationContextService.find(userId);
-        if (request.lastMentionRoomId() != null) {
-            context = context.withMention(new MentionedEntityDto(MentionedEntityType.ROOM, request.lastMentionRoomId(), null));
+    private LlmConversationContext resolveConversationContext(Long userId, RequestSource source) {
+        if (source == RequestSource.TELEGRAM) {
+            Long roomId = llmConversationContextService.findTelegramLastMentionedRoomId(userId);
+            if (roomId == null) {
+                return LlmConversationContext.empty();
+            }
+            return LlmConversationContext.empty()
+                    .withMention(new MentionedEntityDto(MentionedEntityType.ROOM, roomId, null));
         }
-        return context;
+        return llmConversationContextService.find(userId);
     }
 
     private String formatRecentConversation(LlmConversationContext context) {
@@ -149,6 +160,24 @@ public class LlmService {
                 builder.append(", name=").append(mention.name());
             }
             builder.append("\n");
+        }
+        return builder.toString();
+    }
+
+    private String formatRoomSubInfo(List<com.nhnacademy.recommendation.dto.roomsub.RoomSubResponse> roomSubInfo) {
+        if (roomSubInfo == null || roomSubInfo.isEmpty()) {
+            return "없음";
+        }
+
+        StringBuilder builder = new StringBuilder();
+        for (com.nhnacademy.recommendation.dto.roomsub.RoomSubResponse room : roomSubInfo) {
+            builder.append("- roomId=")
+                    .append(room.roomId())
+                    .append(", roomName=")
+                    .append(firstNonBlank(room.roomName(), ""))
+                    .append(", notificationEnabled=")
+                    .append(room.notificationEnabled())
+                    .append("\n");
         }
         return builder.toString();
     }

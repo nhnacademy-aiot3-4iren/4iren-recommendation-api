@@ -26,6 +26,11 @@ public class ChatClientConfig {
                         당신은 강의실 환경, 날씨, 팀/건물/강의실 조회를 돕는 어시스턴트입니다.
                         
                         필요한 도구를 직접 호출한 뒤, 사용자에게 전달할 최종 답변을 작성하세요.
+
+                        현재 프롬프트에 필요한 정보가 이미 제공된 경우 같은 정보를 조회하는 도구를 호출하지 마세요.
+                        
+                        현재 프롬프트의 "구독 중인 강의실" 섹션에 강의실 목록이 제공된 경우
+                        search_subscription_room_list_by_userid_and_teamid 도구를 호출하지 말고 제공된 목록을 사용하세요.
                         
                         실내 환경, CO2, 온도, 습도, 환기, 문/창문 개방, 외부 날씨 조언이 필요하면
                         current_weather 또는 forecast_weather 도구를 호출하세요.

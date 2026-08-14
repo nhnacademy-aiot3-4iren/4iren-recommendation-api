@@ -44,7 +44,7 @@ class SearchSensorToolTest {
 
     @BeforeEach
     void setUp() {
-        context = new LlmRequestContext(1L, UserRole.NORMAL, LlmConversationContext.empty());
+        context = new LlmRequestContext(1L, UserRole.ADMIN, LlmConversationContext.empty());
         tool = new SearchSensorTool(coreSensorService, contextHolder, conversationContextService, mentionedEntityResolver);
     }
 
@@ -56,7 +56,7 @@ class SearchSensorToolTest {
         given(contextHolder.get()).willReturn(context);
         given(mentionedEntityResolver.resolve(3L, MentionedEntityType.TEAM)).willReturn(3L);
         given(mentionedEntityResolver.resolve(20L, MentionedEntityType.ROOM)).willReturn(20L);
-        given(coreSensorService.getSensorListByRoom(1L, UserRole.NORMAL, 3L, 20L)).willReturn(sensors);
+        given(coreSensorService.getSensorListByRoom(1L, UserRole.ADMIN, 3L, 20L)).willReturn(sensors);
 
         ToolResult<List<SensorLocationResponse>> result = tool.getSensorListByRoom(3L, 20L);
 
@@ -65,6 +65,24 @@ class SearchSensorToolTest {
         assertThat(result.data()).containsExactlyElementsOf(sensors);
         verify(conversationContextService).saveTeamMention(1L, 3L);
         verify(conversationContextService).saveRoomMention(1L, 20L, null);
+    }
+
+
+    @Test
+    @DisplayName("강의실 내 센서 목록 조회 실패 - 유저 권한")
+    void getDeviceListByRoom_Fail_UserRole() {
+        LlmRequestContext normalContext = new LlmRequestContext(1L, UserRole.NORMAL, LlmConversationContext.empty());
+        given(contextHolder.get()).willReturn(normalContext);
+        given(mentionedEntityResolver.resolve(3L, MentionedEntityType.TEAM)).willReturn(3L);
+        given(mentionedEntityResolver.resolve(20L, MentionedEntityType.ROOM)).willReturn(20L);
+
+        ToolResult<List<SensorLocationResponse>> result = tool.getSensorListByRoom(3L, 20L);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.code()).isEqualTo("ACCESS_DENIED_ROLE");
+        assertThat(result.data()).isNull();
+        verifyNoInteractions(coreSensorService);
+        verifyNoInteractions(conversationContextService);
     }
 
     @Test

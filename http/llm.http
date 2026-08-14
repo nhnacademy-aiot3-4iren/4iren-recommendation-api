@@ -3,9 +3,9 @@
 POST http://localhost:8763/api/recommendation/chat
 Content-Type: application/json
 X-User-Id: 1
-X-User-Role: ADMIN
+X-User-Role: NORMAL
 
 {
-  "message": "그 강의실이 위치한 지역이 어떻게 돼?",
+  "message": "현재 내가 구독중인 강의실 목록",
   "requestedAt": "2026-07-30T11:20:00"
 }
