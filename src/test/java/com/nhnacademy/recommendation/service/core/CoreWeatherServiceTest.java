@@ -62,6 +62,16 @@ class CoreWeatherServiceTest {
     }
 
     @Test
+    @DisplayName("현재 날씨 조회 실패 - CoreClient 예외 전파")
+    void getCurrentWeather_Fail_CoreClient() {
+        RuntimeException exception = new RuntimeException("core api error");
+        given(coreClient.getNcst("지역")).willThrow(exception);
+
+        assertThatThrownBy(() -> service.getCurrentWeather("지역"))
+                .isSameAs(exception);
+    }
+
+    @Test
     @DisplayName("날씨 예보 조회 실패 - CoreClient 예외 전파")
     void getForecastWeather_Fail_CoreClient() {
         RuntimeException exception = new RuntimeException("core api error");
