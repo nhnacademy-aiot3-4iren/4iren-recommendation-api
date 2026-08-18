@@ -22,10 +22,10 @@ import java.util.List;
 @FeignClient(name = "4iren-core", path = "/api/core")
 public interface CoreClient {
 
-    @GetMapping("/kma/ultraSrtNcst")
+    @GetMapping("/kma/current-weather")
     ResponseEntity<KmaCurrentWeatherResponseDto> getNcst(@RequestParam("regionName") String regionName);
 
-    @GetMapping("/kma/ultraSrtFcst")
+    @GetMapping("/kma/forecast-weather")
     ResponseEntity<KmaForecastWeatherResponseDto> getFcst(@RequestParam("regionName") String regionName);
 
     @GetMapping("/internal/rooms/{room-id}")
