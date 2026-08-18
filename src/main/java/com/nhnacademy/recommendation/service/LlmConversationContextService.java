@@ -21,6 +21,7 @@ public class LlmConversationContextService {
     private static final Duration TTL = Duration.ofMinutes(20);
     private static final String PREFIX = "llm:conversation-context:";
     private static final String TELEGRAM_LAST_MENTIONED_ROOM_PREFIX = "telegram:last-mentioned-room:";
+    private static final String TELEGRAM_CHAT_MEMORY_CONTEXT_PREFIX = "telegram:chat-memory:context:";
 
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
@@ -141,6 +142,25 @@ public class LlmConversationContextService {
         }
     }
 
+    public LlmConversationContext findTelegramConversationContext(Long userId) {
+        String value = stringRedisTemplate.opsForValue().get(telegramChatMemoryContextKey(userId));
+        if (value == null || value.isBlank()) {
+            return LlmConversationContext.empty();
+        }
+
+        try {
+            TelegramConversationContext context = objectMapper.readValue(value, TelegramConversationContext.class);
+            if (context == null || !context.isQuestion()) {
+                return LlmConversationContext.empty();
+            }
+            return LlmConversationContext.empty()
+                    .withLastExchange(context.lastQuestion(), context.lastAnswer());
+        } catch (JsonProcessingException e) {
+            log.warn("텔레그램 대화 컨텍스트 역직렬화 실패. userId={}", userId, e);
+            return LlmConversationContext.empty();
+        }
+    }
+
     private boolean isTelegramRequest() {
         if (llmRequestContextHolder == null) {
             return false;
@@ -159,5 +179,9 @@ public class LlmConversationContextService {
 
     private String telegramLastMentionedRoomKey(Long userId) {
         return TELEGRAM_LAST_MENTIONED_ROOM_PREFIX + userId;
+    }
+
+    private String telegramChatMemoryContextKey(Long userId) {
+        return TELEGRAM_CHAT_MEMORY_CONTEXT_PREFIX + userId;
     }
 }

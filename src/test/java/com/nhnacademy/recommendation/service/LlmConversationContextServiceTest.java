@@ -34,6 +34,7 @@ class LlmConversationContextServiceTest {
 
     private static final String KEY = "llm:conversation-context:1";
     private static final String TELEGRAM_ROOM_KEY = "telegram:last-mentioned-room:1";
+    private static final String TELEGRAM_CONTEXT_KEY = "telegram:chat-memory:context:1";
     private static final Duration TTL = Duration.ofMinutes(20);
 
     @Mock
@@ -221,6 +222,50 @@ class LlmConversationContextServiceTest {
         Long result = service.findTelegramLastMentionedRoomId(1L);
 
         assertThat(result).isEqualTo(20L);
+    }
+
+    @Test
+    @DisplayName("텔레그램 QUESTION 대화 컨텍스트를 최근 질문/답변으로 변환한다")
+    void findTelegramConversationContext() {
+        given(valueOperations.get(TELEGRAM_CONTEXT_KEY)).willReturn("""
+                {
+                  "intentType": "QUESTION",
+                  "lastQuestion": "201호 상태 알려줘",
+                  "lastAnswer": "201호는 환기가 필요합니다."
+                }
+                """);
+
+        LlmConversationContext result = service.findTelegramConversationContext(1L);
+
+        assertThat(result.lastQuestion()).isEqualTo("201호 상태 알려줘");
+        assertThat(result.lastAnswer()).isEqualTo("201호는 환기가 필요합니다.");
+        assertThat(result.mentions()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("텔레그램 FEEDBACK 대화 컨텍스트는 질문 문맥으로 사용하지 않는다")
+    void findTelegramConversationContext_Feedback() {
+        given(valueOperations.get(TELEGRAM_CONTEXT_KEY)).willReturn("""
+                {
+                  "intentType": "FEEDBACK",
+                  "lastQuestion": "좋아요",
+                  "lastAnswer": "감사합니다."
+                }
+                """);
+
+        LlmConversationContext result = service.findTelegramConversationContext(1L);
+
+        assertThat(result).isEqualTo(LlmConversationContext.empty());
+    }
+
+    @Test
+    @DisplayName("텔레그램 대화 컨텍스트 JSON 파싱 실패 시 빈 컨텍스트를 반환한다")
+    void findTelegramConversationContext_InvalidJson() {
+        given(valueOperations.get(TELEGRAM_CONTEXT_KEY)).willReturn("잘못된 JSON");
+
+        LlmConversationContext result = service.findTelegramConversationContext(1L);
+
+        assertThat(result).isEqualTo(LlmConversationContext.empty());
     }
 
     private void useRedisValue(String initialValue) {
