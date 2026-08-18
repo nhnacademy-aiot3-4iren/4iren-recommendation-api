@@ -122,12 +122,12 @@ public class LlmService {
 
     private LlmConversationContext resolveConversationContext(Long userId, RequestSource source) {
         if (source == RequestSource.TELEGRAM) {
+            LlmConversationContext context = llmConversationContextService.findTelegramConversationContext(userId);
             Long roomId = llmConversationContextService.findTelegramLastMentionedRoomId(userId);
             if (roomId == null) {
-                return LlmConversationContext.empty();
+                return context;
             }
-            return LlmConversationContext.empty()
-                    .withMention(new MentionedEntityDto(MentionedEntityType.ROOM, roomId, null));
+            return context.withMention(new MentionedEntityDto(MentionedEntityType.ROOM, roomId, null));
         }
         return llmConversationContextService.find(userId);
     }

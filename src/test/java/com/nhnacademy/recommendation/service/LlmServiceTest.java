@@ -93,12 +93,15 @@ class LlmServiceTest {
     @Test
     @DisplayName("텔레그램 요청은 웹 대화 컨텍스트 대신 telegram 최근 언급 강의실을 사용한다")
     void answer_Telegram() {
+        LlmConversationContext telegramContext = LlmConversationContext.empty()
+                .withLastExchange("201호 상태 알려줘", "201호는 환기가 필요합니다.");
         LlmRequestDto request = new LlmRequestDto(
                 List.of(new RoomSubResponse(20L, "201호", true)),
                 "그 방 기기 목록 보여줘",
                 LocalDateTime.of(2026, 7, 31, 10, 0)
         );
 
+        given(conversationContextService.findTelegramConversationContext(1L)).willReturn(telegramContext);
         given(conversationContextService.findTelegramLastMentionedRoomId(1L)).willReturn(20L);
         given(chatClient.prompt()).willReturn(requestSpec);
         given(requestSpec.user(anyString())).willReturn(requestSpec);
@@ -121,7 +124,9 @@ class LlmServiceTest {
         assertThat(promptCaptor.getValue())
                 .contains("ROOM: id=20")
                 .contains("구독 중인 강의실:")
-                .contains("roomId=20, roomName=201호");
+                .contains("roomId=20, roomName=201호")
+                .contains("이전 질문: 201호 상태 알려줘")
+                .contains("이전 답변: 201호는 환기가 필요합니다.");
 
         verify(conversationContextService, never()).find(1L);
         verify(conversationContextService, never()).save(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.any());
