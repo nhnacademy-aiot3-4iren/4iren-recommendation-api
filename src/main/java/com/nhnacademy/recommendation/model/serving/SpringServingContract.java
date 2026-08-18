@@ -12,6 +12,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public record SpringServingContract(
         String schemaVersion,
@@ -20,10 +22,12 @@ public record SpringServingContract(
         Set<String> validBehaviorLocations,
         int behaviorBinMinutes,
         List<String> behaviorEventFeatureOrder,
+        BehaviorOrchestrationSpec behaviorOrchestration,
         Map<String, OnnxModelSpec> models
 ) {
 
     private static final int EXPECTED_ONNX_MODEL_COUNT = 10;
+    private static final Pattern FEATURE_CYCLE_PATTERN = Pattern.compile("/([0-9]+(?:\\.[0-9]+)?)\\)$");
 
     public static SpringServingContract load(Path contractPath, ObjectMapper objectMapper) {
         try {
@@ -46,6 +50,7 @@ public record SpringServingContract(
             List<String> eventFeatureOrder = requiredTextArray(
                     behavior.path("eventFeatureOrder"), "behavior.eventFeatureOrder"
             );
+            BehaviorOrchestrationSpec behaviorOrchestration = loadBehaviorOrchestration(behavior);
 
             Map<String, OnnxModelSpec> models = new LinkedHashMap<>();
             addModel(models, "objective", root.path("objective"));
@@ -71,6 +76,7 @@ public record SpringServingContract(
                     Set.copyOf(validLocations),
                     binMinutes,
                     List.copyOf(eventFeatureOrder),
+                    behaviorOrchestration,
                     Map.copyOf(models)
             );
         } catch (IOException e) {
@@ -112,11 +118,99 @@ public record SpringServingContract(
 
         OnnxModelSpec previous = models.put(
                 key,
-                new OnnxModelSpec(key, filename, List.copyOf(inputs), Set.copyOf(outputs))
+                new OnnxModelSpec(
+                        key,
+                        filename,
+                        List.copyOf(inputs),
+                        Set.copyOf(outputs),
+                        optionalText(node, "outputName"),
+                        optionalInteger(node, "positiveProbabilityColumn"),
+                        optionalDouble(node, "threshold")
+                )
         );
         if (previous != null) {
             throw new BundleValidationException("contract 모델 key가 중복됩니다: " + key);
         }
+    }
+
+    private static BehaviorOrchestrationSpec loadBehaviorOrchestration(JsonNode behavior) {
+        JsonNode featureEncoding = behavior.path("featureEncoding");
+        JsonNode sessionEstimator = behavior.path("sessionEstimator");
+        JsonNode peakSelection = behavior.path("peakSelection");
+        JsonNode startStopPairing = behavior.path("startStopPairing");
+        JsonNode ventilation = behavior.path("ventilation");
+        JsonNode response = behavior.path("response");
+
+        Map<String, Set<String>> regimeGating = new LinkedHashMap<>();
+        JsonNode gatingNode = behavior.path("regimeGating");
+        for (String deviceType : List.of("AIR_CONDITIONER", "HEATER")) {
+            regimeGating.put(
+                    deviceType,
+                    Set.copyOf(requiredTextArray(gatingNode.path(deviceType), "behavior.regimeGating." + deviceType))
+            );
+        }
+
+        return new BehaviorOrchestrationSpec(
+                requiredText(behavior, "schemaVersion", "behavior"),
+                requiredText(behavior, "timezone", "behavior"),
+                requiredTextArray(behavior.path("dailyUsageFeatureOrder"), "behavior.dailyUsageFeatureOrder"),
+                Map.copyOf(regimeGating),
+                positiveInteger(sessionEstimator, "sameWeekdayMinimumHistoricalDates", "behavior.sessionEstimator"),
+                positiveInteger(peakSelection, "hvacMinimumDistanceBins", "behavior.peakSelection"),
+                positiveInteger(peakSelection, "ventilationMinimumDistanceBins", "behavior.peakSelection"),
+                positiveInteger(startStopPairing, "minimumStopAfterStartBins", "behavior.startStopPairing"),
+                positiveInteger(ventilation, "durationMinutes", "behavior.ventilation"),
+                requiredText(response, "recommendationType", "behavior.response"),
+                nonNegativeInteger(response, "confidenceRoundingDecimals", "behavior.response"),
+                featureCycle(featureEncoding, "hour"),
+                featureCycle(featureEncoding, "weekday"),
+                featureCycle(featureEncoding, "dayOfYear")
+        );
+    }
+
+    private static int positiveInteger(JsonNode node, String fieldName, String context) {
+        int value = node.path(fieldName).asInt(-1);
+        if (value <= 0) {
+            throw new BundleValidationException("contract 양의 정수 값이 유효하지 않습니다: "
+                    + context + "." + fieldName);
+        }
+        return value;
+    }
+
+    private static int nonNegativeInteger(JsonNode node, String fieldName, String context) {
+        int value = node.path(fieldName).asInt(-1);
+        if (value < 0) {
+            throw new BundleValidationException("contract 0 이상 정수 값이 유효하지 않습니다: "
+                    + context + "." + fieldName);
+        }
+        return value;
+    }
+
+    private static double featureCycle(JsonNode featureEncoding, String fieldName) {
+        String expression = requiredText(featureEncoding, fieldName, "behavior.featureEncoding");
+        Matcher matcher = FEATURE_CYCLE_PATTERN.matcher(expression);
+        if (!matcher.find()) {
+            throw new BundleValidationException("contract 주기 feature 식을 해석할 수 없습니다: "
+                    + "behavior.featureEncoding." + fieldName + "=" + expression);
+        }
+        return Double.parseDouble(matcher.group(1));
+    }
+
+    private static String optionalText(JsonNode node, String fieldName) {
+        String value = node.path(fieldName).asText(null);
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    private static Integer optionalInteger(JsonNode node, String fieldName) {
+        return node.hasNonNull(fieldName) && node.path(fieldName).canConvertToInt()
+                ? node.path(fieldName).intValue()
+                : null;
+    }
+
+    private static Double optionalDouble(JsonNode node, String fieldName) {
+        return node.hasNonNull(fieldName) && node.path(fieldName).isNumber()
+                ? node.path(fieldName).doubleValue()
+                : null;
     }
 
     private static String requiredText(JsonNode node, String fieldName, String context) {
@@ -145,10 +239,35 @@ public record SpringServingContract(
             String key,
             String filename,
             List<OnnxInputSpec> inputs,
-            Set<String> outputs
+            Set<String> outputs,
+            String outputName,
+            Integer positiveProbabilityColumn,
+            Double threshold
     ) {
     }
 
     public record OnnxInputSpec(String name, String dtype) {
+    }
+
+    public record BehaviorOrchestrationSpec(
+            String schemaVersion,
+            String timezone,
+            List<String> dailyUsageFeatureOrder,
+            Map<String, Set<String>> regimeGating,
+            int sameWeekdayMinimumHistoricalDates,
+            int hvacMinimumDistanceBins,
+            int ventilationMinimumDistanceBins,
+            int minimumStopAfterStartBins,
+            int ventilationDurationMinutes,
+            String recommendationType,
+            int confidenceRoundingDecimals,
+            double hourCycle,
+            double weekdayCycle,
+            double dayOfYearCycle
+    ) {
+        public BehaviorOrchestrationSpec {
+            dailyUsageFeatureOrder = List.copyOf(dailyUsageFeatureOrder);
+            regimeGating = Map.copyOf(regimeGating);
+        }
     }
 }
