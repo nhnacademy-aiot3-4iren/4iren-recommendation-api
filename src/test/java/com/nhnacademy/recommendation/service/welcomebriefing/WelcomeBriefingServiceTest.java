@@ -6,19 +6,32 @@ import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import com.nhnacademy.recommendation.dto.room.RoomDevicesResponse;
 import com.nhnacademy.recommendation.dto.room.RoomRegionResponse;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingContext;
+import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingMlRecommendation;
 import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyDto;
 import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingResponse;
+import com.nhnacademy.recommendation.exception.ModelServingException;
 import com.nhnacademy.recommendation.exception.NotPositiveValueException;
+import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendation;
+import com.nhnacademy.recommendation.service.behavior.BehaviorRecommendationService;
 import com.nhnacademy.recommendation.service.core.CoreRoomService;
 import com.nhnacademy.recommendation.service.core.CoreWeatherService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.ObjectProvider;
 
+import java.time.Clock;
+import java.time.DayOfWeek;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,6 +43,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class WelcomeBriefingServiceTest {
+
+    private static final ZoneId ASIA_SEOUL = ZoneId.of("Asia/Seoul");
+    private static final LocalDate PREDICTION_DATE = LocalDate.of(2026, 8, 11);
 
     @Mock
     ChatClient chatClient;
@@ -49,22 +65,33 @@ class WelcomeBriefingServiceTest {
     @Mock
     WelcomeBriefingPolicyService policyService;
 
+    @Mock
+    BehaviorRecommendationService behaviorRecommendationService;
+
+    @Mock
+    ObjectProvider<BehaviorRecommendationService> behaviorRecommendationServiceProvider;
+
+    ObjectMapper objectMapper;
+
     WelcomeBriefingService service;
 
     @BeforeEach
     void setUp() {
+        objectMapper = new ObjectMapper().findAndRegisterModules();
         service = new WelcomeBriefingService(
                 chatClient,
-                new ObjectMapper().findAndRegisterModules(),
+                objectMapper,
                 weatherService,
                 coreRoomService,
-                policyService
+                policyService,
+                behaviorRecommendationServiceProvider,
+                Clock.fixed(Instant.parse("2026-08-10T15:30:00Z"), ASIA_SEOUL)
         );
     }
 
     @Test
     @DisplayName("현재 센서 데이터와 ML 추천 스케줄, 조회 데이터를 조합해 LLM 웰컴 브리핑을 생성한다")
-    void generateWelcomeBriefing() {
+    void generateWelcomeBriefing() throws Exception {
         RoomDetailResponse room = new RoomDetailResponse(10L, 100L, "본관", "101호", "실습실", 0L, 0L);
         RoomRegionResponse region = new RoomRegionResponse(10L, "광주");
         RoomDevicesResponse devices = new RoomDevicesResponse(
@@ -131,7 +158,10 @@ class WelcomeBriefingServiceTest {
                 List.of("12:00~12:30 환기장치 사용을 검토하세요."),
                 List.of("센서 수신 상태를 확인하세요.")
         );
+        BehaviorRecommendation behaviorRecommendation = behaviorRecommendation();
 
+        given(behaviorRecommendationServiceProvider.getIfAvailable()).willReturn(behaviorRecommendationService);
+        given(behaviorRecommendationService.recommend(PREDICTION_DATE, 10L)).willReturn(behaviorRecommendation);
         given(coreRoomService.getRoomDetailInternal(10L)).willReturn(room);
         given(coreRoomService.getRoomRegion(10L)).willReturn(region);
         given(coreRoomService.getRoomDevices(10L)).willReturn(devices);
@@ -147,17 +177,56 @@ class WelcomeBriefingServiceTest {
         WelcomeBriefingResponse result = service.generateWelcomeBriefing(3L, 10L);
 
         assertThat(result).isEqualTo(expected);
-        verify(requestSpec).user(org.mockito.ArgumentMatchers.<String>argThat(prompt ->
-                prompt.contains("\"currentSensor\"")
-                        && prompt.contains("\"co2Ppm\":980.0")
-                        && prompt.contains("\"mlRecommendation\"")
-                        && prompt.contains("\"recommendationType\":\"DAILY_DEVICE_USAGE_SCHEDULE\"")
-                        && prompt.contains("\"deviceType\":\"VENTILATION\"")
-                        && prompt.contains("\"todayWeatherOutlook\"")
-                        && prompt.contains("비가 예상되어 창문 개방 환기는 주의가 필요합니다.")
-                        && prompt.contains("강풍 가능성이 있어 창문 개방을 피하는 것이 좋습니다.")
-                        && prompt.contains("\"deviceName\":\"환기장치\"")
-        ));
+        verify(behaviorRecommendationService).recommend(PREDICTION_DATE, 10L);
+
+        ArgumentCaptor<String> contextCaptor = ArgumentCaptor.forClass(String.class);
+        verify(requestSpec).user(contextCaptor.capture());
+        WelcomeBriefingContext context = objectMapper.readValue(
+                contextCaptor.getValue(),
+                WelcomeBriefingContext.class
+        );
+
+        assertThat(context.room().location()).isEqualTo("회의실");
+        assertThat(context.mlRecommendation()).isEqualTo(welcomeBriefingMlRecommendation());
+        assertThat(context.currentSensor().co2Ppm()).isEqualTo(980.0);
+        assertThat(context.todayWeatherOutlook().cautions()).containsExactly(
+                "비가 예상되어 창문 개방 환기는 주의가 필요합니다.",
+                "강풍 가능성이 있어 창문 개방을 피하는 것이 좋습니다.",
+                "외부 습도가 높을 수 있어 환기 후 실내 습도 확인이 필요합니다."
+        );
+        assertThat(context.devices()).singleElement()
+                .satisfies(device -> assertThat(device.deviceName()).isEqualTo("환기장치"));
+    }
+
+    @Test
+    @DisplayName("Behavior 추천 실패를 고정 스케줄로 숨기지 않고 그대로 전파한다")
+    void generateWelcomeBriefing_BehaviorRecommendationFailure() {
+        ModelServingException failure = new ModelServingException("ONNX inference failed");
+        given(behaviorRecommendationServiceProvider.getIfAvailable()).willReturn(behaviorRecommendationService);
+        given(behaviorRecommendationService.recommend(PREDICTION_DATE, 10L)).willThrow(failure);
+
+        assertThatThrownBy(() -> service.generateWelcomeBriefing(3L, 10L))
+                .isSameAs(failure);
+
+        verify(behaviorRecommendationService).recommend(PREDICTION_DATE, 10L);
+        verifyNoInteractions(coreRoomService, weatherService, policyService, chatClient);
+    }
+
+    @Test
+    @DisplayName("Model serving이 비활성화되면 fake 추천 없이 명확하게 실패한다")
+    void generateWelcomeBriefing_ModelServingDisabled() {
+        assertThatThrownBy(() -> service.generateWelcomeBriefing(3L, 10L))
+                .isInstanceOf(ModelServingException.class)
+                .hasMessage("Model serving이 비활성화되어 Behavior 추천을 생성할 수 없습니다.");
+
+        verify(behaviorRecommendationServiceProvider).getIfAvailable();
+        verifyNoInteractions(
+                behaviorRecommendationService,
+                coreRoomService,
+                weatherService,
+                policyService,
+                chatClient
+        );
     }
 
     @Test
@@ -166,7 +235,14 @@ class WelcomeBriefingServiceTest {
         assertThatThrownBy(() -> service.generateWelcomeBriefing(0L, 10L))
                 .isInstanceOf(NotPositiveValueException.class);
 
-        verifyNoInteractions(coreRoomService, weatherService, policyService, chatClient);
+        verifyNoInteractions(
+                behaviorRecommendationServiceProvider,
+                behaviorRecommendationService,
+                coreRoomService,
+                weatherService,
+                policyService,
+                chatClient
+        );
     }
 
     @Test
@@ -175,6 +251,87 @@ class WelcomeBriefingServiceTest {
         assertThatThrownBy(() -> service.generateWelcomeBriefing(3L, 0L))
                 .isInstanceOf(NotPositiveValueException.class);
 
-        verifyNoInteractions(coreRoomService, weatherService, policyService, chatClient);
+        verifyNoInteractions(
+                behaviorRecommendationServiceProvider,
+                behaviorRecommendationService,
+                coreRoomService,
+                weatherService,
+                policyService,
+                chatClient
+        );
+    }
+
+    private BehaviorRecommendation behaviorRecommendation() {
+        return new BehaviorRecommendation(
+                "4iren.behavior.recommendation.v1",
+                new BehaviorRecommendation.Context(
+                        PREDICTION_DATE,
+                        DayOfWeek.TUESDAY,
+                        10L,
+                        "회의실",
+                        "Asia/Seoul"
+                ),
+                "DAILY_DEVICE_USAGE_SCHEDULE",
+                List.of(
+                        new BehaviorRecommendation.ScheduleItem(
+                                "HEATER",
+                                "ON",
+                                LocalTime.of(6, 15),
+                                LocalTime.of(8, 45),
+                                0.8123
+                        ),
+                        new BehaviorRecommendation.ScheduleItem(
+                                "VENTILATION",
+                                "ON",
+                                LocalTime.of(14, 15),
+                                LocalTime.of(14, 45),
+                                0.7312
+                        ),
+                        new BehaviorRecommendation.ScheduleItem(
+                                "HEATER",
+                                "OFF",
+                                LocalTime.of(8, 45),
+                                null,
+                                0.6543
+                        )
+                )
+        );
+    }
+
+    private WelcomeBriefingMlRecommendation welcomeBriefingMlRecommendation() {
+        return new WelcomeBriefingMlRecommendation(
+                "4iren.behavior.recommendation.v1",
+                new WelcomeBriefingMlRecommendation.Context(
+                        PREDICTION_DATE,
+                        DayOfWeek.TUESDAY,
+                        10L,
+                        "회의실",
+                        "Asia/Seoul"
+                ),
+                "DAILY_DEVICE_USAGE_SCHEDULE",
+                List.of(
+                        new WelcomeBriefingMlRecommendation.RecommendedSchedule(
+                                "HEATER",
+                                "ON",
+                                LocalTime.of(6, 15),
+                                LocalTime.of(8, 45),
+                                0.8123
+                        ),
+                        new WelcomeBriefingMlRecommendation.RecommendedSchedule(
+                                "VENTILATION",
+                                "ON",
+                                LocalTime.of(14, 15),
+                                LocalTime.of(14, 45),
+                                0.7312
+                        ),
+                        new WelcomeBriefingMlRecommendation.RecommendedSchedule(
+                                "HEATER",
+                                "OFF",
+                                LocalTime.of(8, 45),
+                                null,
+                                0.6543
+                        )
+                )
+        );
     }
 }
