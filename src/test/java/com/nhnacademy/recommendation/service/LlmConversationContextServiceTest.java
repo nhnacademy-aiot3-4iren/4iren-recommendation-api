@@ -207,7 +207,7 @@ class LlmConversationContextServiceTest {
         try {
             telegramService.saveRoomMention(1L, 20L, "201호");
 
-            verify(valueOperations, never()).set(eq(TELEGRAM_ROOM_KEY), eq("20"), eq(TTL));
+            verify(valueOperations, never()).set(TELEGRAM_ROOM_KEY, "20", TTL);
             verify(valueOperations, never()).set(eq(KEY), org.mockito.ArgumentMatchers.anyString(), eq(TTL));
         } finally {
             contextHolder.clear();
