@@ -3,11 +3,13 @@ package com.nhnacademy.recommendation.tools.general;
 import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
 import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
+import com.nhnacademy.recommendation.dto.llm.RequestSource;
+import com.nhnacademy.recommendation.dto.roomsub.RoomSubResponse;
 import com.nhnacademy.recommendation.dto.roomsub.RoomSubscriptionResponse;
 import com.nhnacademy.recommendation.dto.tool.ToolResult;
-import com.nhnacademy.recommendation.service.core.CoreSubscriptionRoomService;
 import com.nhnacademy.recommendation.service.LlmConversationContextService;
 import com.nhnacademy.recommendation.service.MentionedEntityResolver;
+import com.nhnacademy.recommendation.service.core.CoreSubscriptionRoomService;
 import com.nhnacademy.recommendation.util.TimingLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +33,7 @@ public class SearchSubscriptionRoomTool {
             name = "search_subscription_room_list_by_userid_and_teamid",
             description = """
                     팀ID로 사용자가 현재 구독중인 강의실(방) 목록을 조회합니다.
+                    현재 프롬프트의 '구독 중인 강의실' 섹션에 목록이 제공된 경우 이 도구를 호출하지 마세요.
                     추후 팀의 강의실 목록 조회 도구를 호출하여 답변을 보완할 수 있습니다.
                     """
     )
@@ -38,6 +41,10 @@ public class SearchSubscriptionRoomTool {
             @ToolParam(required = false, description = "팀의 번호. 현재 질문에 팀 번호가 없으면 생략하세요.") Long teamId){
         log.info("[SearchSubscriptionRoomTool] 현재 구독중인 강의실(Team) 목록 조회 호출");
         LlmRequestContext context = llmRequestContextHolder.get();
+        if (hasTelegramProvidedSubscriptionRooms(context)) {
+            return ToolResult.success(toRoomSubscriptionResponses(context.roomSubInfo()));
+        }
+
         Long resolvedTeamId = mentionedEntityResolver.resolve(teamId, MentionedEntityType.TEAM);
         return TimingLog.measure(log, "[Timing][Tool] search_subScription_room_list teamId=" + resolvedTeamId, ()->{
             if (resolvedTeamId == null) {
@@ -54,5 +61,17 @@ public class SearchSubscriptionRoomTool {
             }
         });
 
+    }
+
+    private boolean hasTelegramProvidedSubscriptionRooms(LlmRequestContext context) {
+        return context.source() == RequestSource.TELEGRAM
+                && context.roomSubInfo() != null
+                && !context.roomSubInfo().isEmpty();
+    }
+
+    private List<RoomSubscriptionResponse> toRoomSubscriptionResponses(List<RoomSubResponse> roomSubInfo) {
+        return roomSubInfo.stream()
+                .map(room -> new RoomSubscriptionResponse(null, room.roomId(), room.notificationEnabled()))
+                .toList();
     }
 }

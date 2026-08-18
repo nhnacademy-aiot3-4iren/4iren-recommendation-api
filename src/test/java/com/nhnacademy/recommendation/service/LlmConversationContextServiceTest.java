@@ -3,10 +3,10 @@ package com.nhnacademy.recommendation.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
+import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.building.BuildingDetailResponse;
-import com.nhnacademy.recommendation.dto.llm.LlmConversationContext;
-import com.nhnacademy.recommendation.dto.llm.MentionedEntityDto;
-import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
+import com.nhnacademy.recommendation.dto.llm.*;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,15 +27,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class LlmConversationContextServiceTest {
 
     private static final String KEY = "llm:conversation-context:1";
+    private static final String TELEGRAM_ROOM_KEY = "telegram:last-mentioned-room:1";
+    private static final String TELEGRAM_CONTEXT_KEY = "telegram:chat-memory:context:1";
     private static final Duration TTL = Duration.ofMinutes(20);
 
     @Mock
@@ -186,6 +185,87 @@ class LlmConversationContextServiceTest {
 
         verify(valueOperations, never()).set(eq(KEY), org.mockito.ArgumentMatchers.anyString(), eq(TTL));
         verifyNoMoreInteractions(valueOperations);
+    }
+
+    @Test
+    @DisplayName("텔레그램 요청의 mention 저장은 recommendation에서 Redis에 쓰지 않는다")
+    void telegramRequestDoesNotSaveMention() {
+        LlmRequestContextHolder contextHolder = new LlmRequestContextHolder();
+        LlmConversationContextService telegramService = new LlmConversationContextService(
+                stringRedisTemplate,
+                objectMapper,
+                contextHolder
+        );
+        contextHolder.set(new LlmRequestContext(
+                1L,
+                UserRole.NORMAL,
+                LlmConversationContext.empty(),
+                RequestSource.TELEGRAM,
+                List.of()
+        ));
+
+        try {
+            telegramService.saveRoomMention(1L, 20L, "201호");
+
+            verify(valueOperations, never()).set(TELEGRAM_ROOM_KEY, "20", TTL);
+            verify(valueOperations, never()).set(eq(KEY), org.mockito.ArgumentMatchers.anyString(), eq(TTL));
+        } finally {
+            contextHolder.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("텔레그램 최근 언급 강의실 키에서 roomId를 조회한다")
+    void findTelegramLastMentionedRoomId() {
+        given(valueOperations.get(TELEGRAM_ROOM_KEY)).willReturn("20");
+
+        Long result = service.findTelegramLastMentionedRoomId(1L);
+
+        assertThat(result).isEqualTo(20L);
+    }
+
+    @Test
+    @DisplayName("텔레그램 QUESTION 대화 컨텍스트를 최근 질문/답변으로 변환한다")
+    void findTelegramConversationContext() {
+        given(valueOperations.get(TELEGRAM_CONTEXT_KEY)).willReturn("""
+                {
+                  "intentType": "QUESTION",
+                  "lastQuestion": "201호 상태 알려줘",
+                  "lastAnswer": "201호는 환기가 필요합니다."
+                }
+                """);
+
+        LlmConversationContext result = service.findTelegramConversationContext(1L);
+
+        assertThat(result.lastQuestion()).isEqualTo("201호 상태 알려줘");
+        assertThat(result.lastAnswer()).isEqualTo("201호는 환기가 필요합니다.");
+        assertThat(result.mentions()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("텔레그램 FEEDBACK 대화 컨텍스트는 질문 문맥으로 사용하지 않는다")
+    void findTelegramConversationContext_Feedback() {
+        given(valueOperations.get(TELEGRAM_CONTEXT_KEY)).willReturn("""
+                {
+                  "intentType": "FEEDBACK",
+                  "lastQuestion": "좋아요",
+                  "lastAnswer": "감사합니다."
+                }
+                """);
+
+        LlmConversationContext result = service.findTelegramConversationContext(1L);
+
+        assertThat(result).isEqualTo(LlmConversationContext.empty());
+    }
+
+    @Test
+    @DisplayName("텔레그램 대화 컨텍스트 JSON 파싱 실패 시 빈 컨텍스트를 반환한다")
+    void findTelegramConversationContext_InvalidJson() {
+        given(valueOperations.get(TELEGRAM_CONTEXT_KEY)).willReturn("잘못된 JSON");
+
+        LlmConversationContext result = service.findTelegramConversationContext(1L);
+
+        assertThat(result).isEqualTo(LlmConversationContext.empty());
     }
 
     private void useRedisValue(String initialValue) {

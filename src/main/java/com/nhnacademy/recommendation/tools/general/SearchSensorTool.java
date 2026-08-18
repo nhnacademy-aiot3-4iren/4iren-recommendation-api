@@ -1,6 +1,7 @@
 package com.nhnacademy.recommendation.tools.general;
 
 import com.nhnacademy.recommendation.config.LlmRequestContextHolder;
+import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestContext;
 import com.nhnacademy.recommendation.dto.llm.MentionedEntityType;
 import com.nhnacademy.recommendation.dto.sensor.SensorLocationResponse;
@@ -44,6 +45,11 @@ public class SearchSensorTool {
         return TimingLog.measure(log,
                 "[Timing][Tool] search_sensor_list teamId=" + resolvedTeamId + " roomId=" + resolvedRoomId,
                 () -> {
+                    if(context.role() != UserRole.ADMIN && context.role() != UserRole.OWNER){
+                        log.info("[SearchSensorTool] 요청한 유저의 권한이 올바르지 않습니다. UserID:{}, UserRole:{}", context.userId(), context.role());
+                        return ToolResult.failure("ACCESS_DENIED_ROLE",
+                                "요청한 유저는 센서 목록을 조회할 수 없는 권한입니다.");
+                    }
                     if (resolvedTeamId == null || resolvedRoomId == null) {
                         log.info("[SearchSensorTool] 팀 번호 또는 강의실 번호가 없어 센서 목록 조회를 중단합니다.");
                         return ToolResult.failure("MISSING_SENSOR_LIST_CONDITION",
