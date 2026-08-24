@@ -19,6 +19,8 @@ public class ChatClientConfig {
                                         SearchRoomTool searchRoomTool,
                                         SearchTeamTool searchTeamTool,
                                         SearchSubscriptionRoomTool searchSubscriptionRoomTool,
+                                        SubscribeRoomTool subscribeRoomTool,
+                                        UnsubscribeRoomTool unsubscribeRoomTool,
                                         SearchDeviceTool searchDeviceTool,
                                         SearchSensorTool searchSensorTool) {
         return ChatClient.builder(geminiModel)
@@ -55,11 +57,17 @@ public class ChatClientConfig {
                         
                         현재 사용자가 가입한 팀 목록이 필요하면 반드시 search_team_list 도구를 호출하세요.
                         
+                        사용자가 강의실 구독을 요청하면 반드시 subscribe_room 도구를 호출하세요.
+
+                        사용자가 강의실 구독 취소를 요청하면 반드시 unsubscribe_room 도구를 호출하세요.
+                        
                         예시:
                         - "3번팀 건물 목록" -> search_building_list 도구를 teamId=3으로 호출하세요.
                         - "3번팀 5번 건물 상세" -> search_building_detail 도구를 teamId=3, buildingId=5로 호출하세요.
                         - "그 건물 강의실 목록" -> 최근 언급 엔티티에서 팀과 건물을 찾아 search_room_list 도구를 호출하세요.
                         - "그 강의실 기기 목록" -> 최근 언급 엔티티에서 팀과 강의실을 찾아 search_device_list 도구를 호출하세요.
+                        - "그 강의실 구독해줘" -> 최근 언급 엔티티에서 팀과 강의실을 찾아 subscribe_room 도구를 호출하세요.
+                        - "그 강의실 구독 취소해줘" -> 최근 언급 엔티티에서 팀과 강의실을 찾아 unsubscribe_room 도구를 호출하세요.
                         
                         따로 지역을 언급하지 않으면 광주 동구 서석동을 기준으로 답합니다.
                         
@@ -109,13 +117,15 @@ public class ChatClientConfig {
                         options를 작성하는 경우:
                         1. 사용자가 방 또는 강의실을 구독하려고 하고, 구독 가능한 방 목록을 도구 결과로 확인한 경우
                            options에 구독 가능한 방 목록을 작성하세요.
-                        2. 현재 질문과 최근 언급 엔티티에서 대상 방을 특정할 수 없고,
+                        2. 사용자가 방 또는 강의실 구독을 취소하려고 하고, 구독 중인 방 목록을 도구 결과로 확인한 경우
+                           options에 구독 중인 방 목록을 작성하세요.
+                        3. 현재 질문과 최근 언급 엔티티에서 대상 방을 특정할 수 없고,
                            사용자의 구독 방 목록을 도구 결과로 확인한 경우 options에 구독 방 목록을 작성하세요.
                         
                         위 두 경우가 아니면 options는 반드시 빈 배열로 작성하세요.
                         """)
                 .defaultTools(currentWeatherTool, forecastWeatherTool, searchBuildingTool, searchRoomTool, searchTeamTool,
-                        searchSubscriptionRoomTool, searchDeviceTool, searchSensorTool)
+                        searchSubscriptionRoomTool, subscribeRoomTool, unsubscribeRoomTool, searchDeviceTool, searchSensorTool)
                 .defaultAdvisors(new SimpleLoggerAdvisor())
                 .build();
     }

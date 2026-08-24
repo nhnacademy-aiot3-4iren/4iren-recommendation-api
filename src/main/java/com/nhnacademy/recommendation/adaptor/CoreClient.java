@@ -6,6 +6,7 @@ import com.nhnacademy.recommendation.dto.building.BuildingResponse;
 import com.nhnacademy.recommendation.dto.device.DeviceResponse;
 import com.nhnacademy.recommendation.dto.kma.KmaCurrentWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
+import com.nhnacademy.recommendation.dto.kma.KmaWeatherHistoryResponseDto;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import com.nhnacademy.recommendation.dto.room.RoomDevicesResponse;
 import com.nhnacademy.recommendation.dto.room.RoomRegionResponse;
@@ -17,6 +18,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @FeignClient(name = "4iren-core", path = "/api/core")
@@ -27,6 +29,14 @@ public interface CoreClient {
 
     @GetMapping("/kma/forecast-weather")
     ResponseEntity<KmaForecastWeatherResponseDto> getFcst(@RequestParam("regionName") String regionName);
+
+    @GetMapping("/kma/weather-history")
+    ResponseEntity<KmaWeatherHistoryResponseDto> getWeatherHistory(
+            @RequestParam("regionName") String regionName,
+            @RequestParam("date") LocalDate date,
+            @RequestParam("startHour") Integer startHour,
+            @RequestParam("endHour") Integer endHour
+    );
 
     @GetMapping("/internal/rooms/{room-id}")
     RoomDetailResponse getRoom(@PathVariable("room-id") Long roomId);
@@ -69,6 +79,10 @@ public interface CoreClient {
     /// 강의실 구독하기
     @PutMapping("/teams/{team-id}/rooms/{room-id}/subscription")
     RoomSubscriptionResponse subscribeToRoom(@RequestHeader("X-USER-ID") Long userId, @RequestHeader("X-USER-ROLE") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("room-id") Long roomId);
+
+    /// 강의실 구독취소
+    @DeleteMapping("/teams/{team-id}/rooms/{room-id}/subscription")
+    ResponseEntity<Void> unsubscribeFromRoom(@RequestHeader("X-USER-ID") Long userId, @RequestHeader("X-USER-ROLE") UserRole role, @PathVariable("team-id") Long teamId, @PathVariable("room-id") Long roomId);
 
     /// 강의실 내 센서 목록 조회
     @GetMapping("/teams/{team-id}/rooms/{room-id}/sensor-locations/all")
