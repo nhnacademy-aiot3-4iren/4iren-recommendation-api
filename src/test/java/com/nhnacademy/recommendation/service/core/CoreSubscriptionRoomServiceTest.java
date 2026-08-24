@@ -11,12 +11,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
@@ -69,6 +71,45 @@ class CoreSubscriptionRoomServiceTest {
         given(coreClient.getSubscriptions(1L, UserRole.NORMAL, 3L)).willThrow(exception);
 
         assertThatThrownBy(() -> service.getSubscriptions(1L, UserRole.NORMAL, 3L))
+                .isSameAs(exception);
+    }
+
+    @Test
+    @DisplayName("강의실 구독 취소 성공")
+    void unsubscribeFromRoom() {
+        given(coreClient.unsubscribeFromRoom(1L, UserRole.NORMAL, 3L, 20L))
+                .willReturn(ResponseEntity.noContent().build());
+
+        service.unsubscribeFromRoom(1L, UserRole.NORMAL, 3L, 20L);
+
+        verify(coreClient).unsubscribeFromRoom(1L, UserRole.NORMAL, 3L, 20L);
+    }
+
+    @Test
+    @DisplayName("강의실 구독 취소 실패 - 필수값 누락")
+    void unsubscribeFromRoom_Fail_RequiredValue() {
+        assertThatThrownBy(() -> service.unsubscribeFromRoom(1L, null, 3L, 20L))
+                .isInstanceOf(RequiredValueException.class);
+
+        verifyNoInteractions(coreClient);
+    }
+
+    @Test
+    @DisplayName("강의실 구독 취소 실패 - 양수가 아닌 ID")
+    void unsubscribeFromRoom_Fail_NotPositiveValue() {
+        assertThatThrownBy(() -> service.unsubscribeFromRoom(1L, UserRole.NORMAL, 3L, 0L))
+                .isInstanceOf(NotPositiveValueException.class);
+
+        verifyNoInteractions(coreClient);
+    }
+
+    @Test
+    @DisplayName("강의실 구독 취소 실패 - CoreClient 예외 전파")
+    void unsubscribeFromRoom_Fail_CoreClient() {
+        RuntimeException exception = new RuntimeException("core api error");
+        given(coreClient.unsubscribeFromRoom(1L, UserRole.NORMAL, 3L, 20L)).willThrow(exception);
+
+        assertThatThrownBy(() -> service.unsubscribeFromRoom(1L, UserRole.NORMAL, 3L, 20L))
                 .isSameAs(exception);
     }
 }
