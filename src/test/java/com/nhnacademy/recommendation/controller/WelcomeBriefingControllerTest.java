@@ -6,7 +6,7 @@ import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingResponse
 import com.nhnacademy.recommendation.exception.GlobalExceptionHandler;
 import com.nhnacademy.recommendation.exception.RequiredValueException;
 import com.nhnacademy.recommendation.exception.RoomPreferenceNotFoundException;
-import com.nhnacademy.recommendation.service.welcomebriefing.WelcomeBriefingService;
+import com.nhnacademy.recommendation.service.welcomebriefing.WelcomeBriefingCacheService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,8 +19,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -37,7 +40,7 @@ class WelcomeBriefingControllerTest {
     ObjectMapper objectMapper;
 
     @MockitoBean
-    WelcomeBriefingService welcomeBriefingService;
+    WelcomeBriefingCacheService welcomeBriefingCacheService;
 
     @Test
     @DisplayName("웰컴 브리핑 생성 요청을 서비스에 위임한다")
@@ -51,7 +54,8 @@ class WelcomeBriefingControllerTest {
                 List.of("센서 수신 상태를 확인하세요.")
         );
 
-        given(welcomeBriefingService.generateWelcomeBriefing(3L, 10L)).willReturn(response);
+        given(welcomeBriefingCacheService.generateWelcomeBriefing(eq(3L), eq(10L), any()))
+                .willReturn(response);
 
         mockMvc.perform(post("/api/recommendation/welcome-briefing")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -61,7 +65,7 @@ class WelcomeBriefingControllerTest {
                 .andExpect(jsonPath("$.currentStatus").value("CO2가 빠르게 상승 중입니다."))
                 .andExpect(jsonPath("$.recommendations[0]").value("환기장치를 점검하세요."));
 
-        verify(welcomeBriefingService).generateWelcomeBriefing(3L, 10L);
+        verify(welcomeBriefingCacheService).generateWelcomeBriefing(eq(3L), eq(10L), any());
     }
 
     @Test
@@ -69,7 +73,7 @@ class WelcomeBriefingControllerTest {
     void generateWelcomeBriefing_RequiredValue() throws Exception {
         WelcomeBriefingRequest request = new WelcomeBriefingRequest(null, 10L);
 
-        given(welcomeBriefingService.generateWelcomeBriefing(null, 10L))
+        given(welcomeBriefingCacheService.generateWelcomeBriefing(eq(null), eq(10L), any()))
                 .willThrow(new RequiredValueException("teamId"));
 
         mockMvc.perform(post("/api/recommendation/welcome-briefing")
@@ -85,7 +89,7 @@ class WelcomeBriefingControllerTest {
         WelcomeBriefingRequest request = new WelcomeBriefingRequest(3L, 10L);
         RoomPreferenceNotFoundException exception = new RoomPreferenceNotFoundException(10L);
 
-        given(welcomeBriefingService.generateWelcomeBriefing(3L, 10L)).willThrow(exception);
+        given(welcomeBriefingCacheService.generateWelcomeBriefing(eq(3L), eq(10L), any())).willThrow(exception);
 
         mockMvc.perform(post("/api/recommendation/welcome-briefing")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -103,5 +107,14 @@ class WelcomeBriefingControllerTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("WelcomeBriefingRequest는 필수 값입니다."));
+    }
+
+    @Test
+    @DisplayName("웰컴 브리핑 캐시를 삭제한다")
+    void clearWelcomeBriefingCache() throws Exception {
+        mockMvc.perform(delete("/api/recommendation/welcome-briefing/cache"))
+                .andExpect(status().isNoContent());
+
+        verify(welcomeBriefingCacheService).clearWelcomeBriefingCache();
     }
 }
