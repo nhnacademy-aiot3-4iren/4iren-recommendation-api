@@ -5,6 +5,7 @@ import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingRequest;
 import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingResponse;
 import com.nhnacademy.recommendation.exception.GlobalExceptionHandler;
 import com.nhnacademy.recommendation.exception.RequiredValueException;
+import com.nhnacademy.recommendation.exception.RoomPreferenceNotFoundException;
 import com.nhnacademy.recommendation.service.welcomebriefing.WelcomeBriefingService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,23 @@ class WelcomeBriefingControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("teamId는 필수 값입니다."));
+    }
+
+    @Test
+    @DisplayName("모델 Bundle에 강의실 선호 정보가 없으면 404 응답을 반환한다")
+    void generateWelcomeBriefing_RoomPreferenceNotFound() throws Exception {
+        WelcomeBriefingRequest request = new WelcomeBriefingRequest(3L, 10L);
+        RoomPreferenceNotFoundException exception = new RoomPreferenceNotFoundException(10L);
+
+        given(welcomeBriefingService.generateWelcomeBriefing(3L, 10L)).willThrow(exception);
+
+        mockMvc.perform(post("/api/recommendation/welcome-briefing")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value(exception.getMessage()))
+                .andExpect(jsonPath("$.timestamp").exists());
     }
 
     @Test

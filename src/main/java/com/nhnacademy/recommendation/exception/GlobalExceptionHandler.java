@@ -71,6 +71,16 @@ public class GlobalExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(RoomPreferenceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> notFound(RoomPreferenceNotFoundException e){
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                e.getMessage(),
+                LocalDateTime.now()
+        ));
+    }
+
     @ExceptionHandler(PolicyAccessDeniedException.class)
     public ResponseEntity<ErrorResponse> forbidden(PolicyAccessDeniedException e){
 

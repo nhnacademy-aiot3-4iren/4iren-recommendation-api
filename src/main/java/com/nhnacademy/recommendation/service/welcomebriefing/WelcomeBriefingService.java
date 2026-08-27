@@ -8,11 +8,16 @@ import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import com.nhnacademy.recommendation.dto.room.RoomDevicesResponse;
 import com.nhnacademy.recommendation.dto.room.RoomRegionResponse;
 import com.nhnacademy.recommendation.dto.welcomebriefing.*;
+import com.nhnacademy.recommendation.exception.ModelServingException;
+import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendation;
+import com.nhnacademy.recommendation.service.behavior.BehaviorRecommendationService;
 import com.nhnacademy.recommendation.service.core.CoreRequestValidator;
 import com.nhnacademy.recommendation.service.core.CoreRoomService;
 import com.nhnacademy.recommendation.service.core.CoreWeatherService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -27,22 +32,41 @@ import java.util.List;
 @Slf4j
 public class WelcomeBriefingService {
 
+    private static final ZoneId BEHAVIOR_ZONE_ID = ZoneId.of("Asia/Seoul");
+
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
     private final CoreWeatherService weatherService;
     private final CoreRoomService coreRoomService;
     private final WelcomeBriefingPolicyService welcomeBriefingPolicyService;
+    private final ObjectProvider<BehaviorRecommendationService> behaviorRecommendationServiceProvider;
+    private final Clock clock;
 
+    @Autowired
     public WelcomeBriefingService(@Qualifier("welcomeBriefingChatClient") ChatClient chatClient,
                                   ObjectMapper objectMapper,
                                   CoreWeatherService weatherService,
                                   CoreRoomService coreRoomService,
-                                  WelcomeBriefingPolicyService welcomeBriefingPolicyService) {
+                                  WelcomeBriefingPolicyService welcomeBriefingPolicyService,
+                                  ObjectProvider<BehaviorRecommendationService> behaviorRecommendationServiceProvider) {
+        this(chatClient, objectMapper, weatherService, coreRoomService, welcomeBriefingPolicyService,
+                behaviorRecommendationServiceProvider, Clock.system(BEHAVIOR_ZONE_ID));
+    }
+
+    WelcomeBriefingService(ChatClient chatClient,
+                           ObjectMapper objectMapper,
+                           CoreWeatherService weatherService,
+                           CoreRoomService coreRoomService,
+                           WelcomeBriefingPolicyService welcomeBriefingPolicyService,
+                           ObjectProvider<BehaviorRecommendationService> behaviorRecommendationServiceProvider,
+                           Clock clock) {
         this.chatClient = chatClient;
         this.objectMapper = objectMapper;
         this.weatherService = weatherService;
         this.coreRoomService = coreRoomService;
         this.welcomeBriefingPolicyService = welcomeBriefingPolicyService;
+        this.behaviorRecommendationServiceProvider = behaviorRecommendationServiceProvider;
+        this.clock = clock;
     }
 
     public WelcomeBriefingResponse generateWelcomeBriefing(Long teamId, Long roomId) {
@@ -110,41 +134,39 @@ public class WelcomeBriefingService {
     }
 
     private WelcomeBriefingMlRecommendation fetchMlRecommendation(Long roomId) {
-        // TODO: ML 추천 스케줄 API 호출로 교체한다.
-        // 예: mlRecommendationClient.getDailyDeviceUsageSchedule(roomId)
+        LocalDate predictionDate = LocalDate.now(clock);
+        BehaviorRecommendationService behaviorRecommendationService = behaviorRecommendationServiceProvider
+                .getIfAvailable();
+        if (behaviorRecommendationService == null) {
+            throw new ModelServingException(
+                    "Model serving이 비활성화되어 Behavior 추천을 생성할 수 없습니다."
+            );
+        }
+        BehaviorRecommendation recommendation = behaviorRecommendationService.recommend(predictionDate, roomId);
+        return toWelcomeBriefingMlRecommendation(recommendation);
+    }
+
+    private WelcomeBriefingMlRecommendation toWelcomeBriefingMlRecommendation(
+            BehaviorRecommendation recommendation) {
         return new WelcomeBriefingMlRecommendation(
-                "4iren.welcome-briefing.behavior.v1",
+                recommendation.schemaVersion(),
                 new WelcomeBriefingMlRecommendation.Context(
-                        LocalDate.of(2026, 8, 10),
-                        DayOfWeek.MONDAY,
-                        roomId,
-                        "실습실",
-                        "Asia/Seoul"
+                        recommendation.context().predictionDate(),
+                        recommendation.context().weekday(),
+                        recommendation.context().roomId(),
+                        recommendation.context().location(),
+                        recommendation.context().timezone()
                 ),
-                "DAILY_DEVICE_USAGE_SCHEDULE",
-                List.of(
-                        new WelcomeBriefingMlRecommendation.RecommendedSchedule(
-                                "AIR_CONDITIONER",
-                                "ON",
-                                LocalTime.of(8, 30),
-                                LocalTime.of(22, 0),
-                                0.3099
-                        ),
-                        new WelcomeBriefingMlRecommendation.RecommendedSchedule(
-                                "VENTILATION",
-                                "ON",
-                                LocalTime.of(12, 0),
-                                LocalTime.of(12, 30),
-                                0.9414
-                        ),
-                        new WelcomeBriefingMlRecommendation.RecommendedSchedule(
-                                "AIR_CONDITIONER",
-                                "OFF",
-                                LocalTime.of(22, 0),
-                                null,
-                                0.1596
-                        )
-                )
+                recommendation.recommendationType(),
+                recommendation.recommendedSchedule().stream()
+                        .map(schedule -> new WelcomeBriefingMlRecommendation.RecommendedSchedule(
+                                schedule.deviceType(),
+                                schedule.action(),
+                                schedule.startTime(),
+                                schedule.endTime(),
+                                schedule.confidence()
+                        ))
+                        .toList()
         );
     }
 
