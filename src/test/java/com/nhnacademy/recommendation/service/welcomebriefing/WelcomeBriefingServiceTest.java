@@ -6,6 +6,7 @@ import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import com.nhnacademy.recommendation.dto.room.RoomDevicesResponse;
 import com.nhnacademy.recommendation.dto.room.RoomRegionResponse;
+import com.nhnacademy.recommendation.dto.sensor.SensorMetricSummaryResponse;
 import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingContext;
 import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingMlRecommendation;
 import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyDto;
@@ -15,6 +16,7 @@ import com.nhnacademy.recommendation.exception.NotPositiveValueException;
 import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendation;
 import com.nhnacademy.recommendation.service.behavior.BehaviorRecommendationService;
 import com.nhnacademy.recommendation.service.core.CoreRoomService;
+import com.nhnacademy.recommendation.service.core.CoreSensorService;
 import com.nhnacademy.recommendation.service.core.CoreWeatherService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,12 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.ObjectProvider;
 
-import java.time.Clock;
-import java.time.DayOfWeek;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.ZoneId;
+import java.time.*;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -63,6 +60,9 @@ class WelcomeBriefingServiceTest {
     CoreRoomService coreRoomService;
 
     @Mock
+    CoreSensorService coreSensorService;
+
+    @Mock
     WelcomeBriefingPolicyService policyService;
 
     @Mock
@@ -83,6 +83,7 @@ class WelcomeBriefingServiceTest {
                 objectMapper,
                 weatherService,
                 coreRoomService,
+                coreSensorService,
                 policyService,
                 behaviorRecommendationServiceProvider,
                 Clock.fixed(Instant.parse("2026-08-10T15:30:00Z"), ASIA_SEOUL)
@@ -162,6 +163,7 @@ class WelcomeBriefingServiceTest {
 
         given(behaviorRecommendationServiceProvider.getIfAvailable()).willReturn(behaviorRecommendationService);
         given(behaviorRecommendationService.recommend(PREDICTION_DATE, 10L)).willReturn(behaviorRecommendation);
+        given(coreSensorService.getSensorMetricSummaryInternal(10L)).willReturn(sensorMetricSummary());
         given(coreRoomService.getRoomDetailInternal(10L)).willReturn(room);
         given(coreRoomService.getRoomRegion(10L)).willReturn(region);
         given(coreRoomService.getRoomDevices(10L)).willReturn(devices);
@@ -188,7 +190,10 @@ class WelcomeBriefingServiceTest {
 
         assertThat(context.room().location()).isEqualTo("회의실");
         assertThat(context.mlRecommendation()).isEqualTo(welcomeBriefingMlRecommendation());
+        assertThat(context.currentSensor().temperatureC()).isEqualTo(25.0);
+        assertThat(context.currentSensor().humidityPercent()).isEqualTo(42.0);
         assertThat(context.currentSensor().co2Ppm()).isEqualTo(980.0);
+        assertThat(context.currentSensor().dataSufficient()).isTrue();
         assertThat(context.todayWeatherOutlook().cautions()).containsExactly(
                 "비가 예상되어 창문 개방 환기는 주의가 필요합니다.",
                 "강풍 가능성이 있어 창문 개방을 피하는 것이 좋습니다.",
@@ -209,7 +214,7 @@ class WelcomeBriefingServiceTest {
                 .isSameAs(failure);
 
         verify(behaviorRecommendationService).recommend(PREDICTION_DATE, 10L);
-        verifyNoInteractions(coreRoomService, weatherService, policyService, chatClient);
+        verifyNoInteractions(coreSensorService, coreRoomService, weatherService, policyService, chatClient);
     }
 
     @Test
@@ -222,6 +227,7 @@ class WelcomeBriefingServiceTest {
         verify(behaviorRecommendationServiceProvider).getIfAvailable();
         verifyNoInteractions(
                 behaviorRecommendationService,
+                coreSensorService,
                 coreRoomService,
                 weatherService,
                 policyService,
@@ -238,6 +244,7 @@ class WelcomeBriefingServiceTest {
         verifyNoInteractions(
                 behaviorRecommendationServiceProvider,
                 behaviorRecommendationService,
+                coreSensorService,
                 coreRoomService,
                 weatherService,
                 policyService,
@@ -254,6 +261,36 @@ class WelcomeBriefingServiceTest {
         verifyNoInteractions(
                 behaviorRecommendationServiceProvider,
                 behaviorRecommendationService,
+                coreSensorService,
+                coreRoomService,
+                weatherService,
+                policyService,
+                chatClient
+        );
+    }
+
+    @Test
+    @DisplayName("10시 이후에는 웰컴 브리핑 생성을 중단한다")
+    void generateWelcomeBriefing_AfterCutoffTime() {
+        WelcomeBriefingService afterCutoffService = new WelcomeBriefingService(
+                chatClient,
+                objectMapper,
+                weatherService,
+                coreRoomService,
+                coreSensorService,
+                policyService,
+                behaviorRecommendationServiceProvider,
+                Clock.fixed(Instant.parse("2026-08-11T01:00:00Z"), ASIA_SEOUL)
+        );
+
+        assertThatThrownBy(() -> afterCutoffService.generateWelcomeBriefing(3L, 10L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("웰컴 브리핑은 10시 전까지만 생성할 수 있습니다.");
+
+        verifyNoInteractions(
+                behaviorRecommendationServiceProvider,
+                behaviorRecommendationService,
+                coreSensorService,
                 coreRoomService,
                 weatherService,
                 policyService,
@@ -330,6 +367,46 @@ class WelcomeBriefingServiceTest {
                                 LocalTime.of(8, 45),
                                 null,
                                 0.6543
+                        )
+                )
+        );
+    }
+
+    private SensorMetricSummaryResponse sensorMetricSummary() {
+        return new SensorMetricSummaryResponse(
+                10L,
+                Instant.parse("2026-08-10T23:00:00Z"),
+                Duration.ofMinutes(15),
+                List.of(
+                        new SensorMetricSummaryResponse.Metric(
+                                "temperature",
+                                "온도",
+                                "GAUGE",
+                                "실내 공기의 섭씨 온도",
+                                25.0,
+                                "Cel",
+                                "섭씨",
+                                "°C"
+                        ),
+                        new SensorMetricSummaryResponse.Metric(
+                                "humidity",
+                                "상대습도",
+                                "GAUGE",
+                                "실내 공기의 상대습도",
+                                42.0,
+                                "%",
+                                "퍼센트",
+                                "%"
+                        ),
+                        new SensorMetricSummaryResponse.Metric(
+                                "co2",
+                                "이산화탄소 농도",
+                                "GAUGE",
+                                "실내 공기 중 이산화탄소 농도",
+                                980.0,
+                                "[ppm]",
+                                "백만분율",
+                                "ppm"
                         )
                 )
         );
