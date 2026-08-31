@@ -2,14 +2,14 @@ package com.nhnacademy.recommendation.service.behavior;
 
 import ai.onnxruntime.OrtEnvironment;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nhnacademy.recommendation.config.ModelServingProperties;
 import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendationResult;
 import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendationResult.HvacSchedule;
 import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendationResult.Session;
-import com.nhnacademy.recommendation.model.serving.LocalModelBundleLoader;
+import com.nhnacademy.recommendation.model.serving.MinioModelBundleDownloader;
 import com.nhnacademy.recommendation.model.serving.ModelBundleValidator;
 import com.nhnacademy.recommendation.model.serving.ModelServingInfrastructure;
 import com.nhnacademy.recommendation.model.serving.OnnxSmokeTester;
+import com.nhnacademy.recommendation.model.serving.ValidatedModelBundle;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
@@ -22,7 +22,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class CandidateBehaviorRecommendationIntegrationTest {
+class ActiveBehaviorRecommendationIntegrationTest {
 
     private static final Map<String, String> EXPECTED_BEHAVIOR_SHA256 = Map.of(
             "behavior_daily_usage_air_conditioner.onnx",
@@ -55,28 +55,32 @@ class CandidateBehaviorRecommendationIntegrationTest {
     );
 
     @Test
-    @EnabledIfSystemProperty(named = "model.candidate.bundle-dir", matches = ".+")
-    void loadsCandidateAndRunsActualRecommendationService() throws Exception {
-        Path candidateDirectory = Path.of(System.getProperty("model.candidate.bundle-dir"))
+    @EnabledIfSystemProperty(named = "model.bundle.test-dir", matches = ".+")
+    void loadsActiveBundleAndRunsActualRecommendationService() throws Exception {
+        Path bundleDirectory = Path.of(System.getProperty("model.bundle.test-dir"))
                 .toAbsolutePath().normalize();
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         ModelBundleValidator validator = new ModelBundleValidator(objectMapper);
-        ModelServingProperties properties = new ModelServingProperties();
-        properties.setSource(ModelServingProperties.Source.LOCAL);
-        properties.setBundleDirectory(candidateDirectory.toString());
+        ValidatedModelBundle bundle = validator.validate(bundleDirectory);
+        MinioModelBundleDownloader downloader = new MinioModelBundleDownloader(null, null, null, null) {
+            @Override
+            public ValidatedModelBundle downloadAndValidate() {
+                return bundle;
+            }
+        };
 
-        try (OrtEnvironment environment = OrtEnvironment.getEnvironment("candidate-behavior-integration-test")) {
+        try (OrtEnvironment environment = OrtEnvironment.getEnvironment("active-behavior-integration-test")) {
             ModelServingInfrastructure infrastructure = new ModelServingInfrastructure(
-                    new LocalModelBundleLoader(properties, validator),
+                    downloader,
                     objectMapper,
                     environment,
                     new OnnxSmokeTester(objectMapper, environment)
             );
             try {
                 infrastructure.initialize();
-                assertThat(infrastructure.bundle().directory()).isEqualTo(candidateDirectory);
+                assertThat(infrastructure.bundle().directory()).isEqualTo(bundleDirectory);
                 assertThat(infrastructure.sessions().size()).isEqualTo(10);
-                verifyBehaviorHashes(candidateDirectory);
+                verifyBehaviorHashes(bundleDirectory);
 
                 BehaviorRecommendationService service = new BehaviorRecommendationService(
                         infrastructure, environment
@@ -100,7 +104,7 @@ class CandidateBehaviorRecommendationIntegrationTest {
                     }
                 }
                 verifyLabSanity(results);
-                System.out.printf("CANDIDATE_PROOF modelVersion=%s path=%s hashes=%s%n",
+                System.out.printf("ACTIVE_MODEL_PROOF modelVersion=%s path=%s hashes=%s%n",
                         infrastructure.bundle().manifest().modelVersion(),
                         infrastructure.bundle().directory(),
                         objectMapper.writeValueAsString(EXPECTED_BEHAVIOR_SHA256));
@@ -110,9 +114,9 @@ class CandidateBehaviorRecommendationIntegrationTest {
         }
     }
 
-    private void verifyBehaviorHashes(Path candidateDirectory) {
+    private void verifyBehaviorHashes(Path bundleDirectory) {
         EXPECTED_BEHAVIOR_SHA256.forEach((filename, expected) ->
-                assertThat(ModelBundleValidator.sha256(candidateDirectory.resolve(filename)))
+                assertThat(ModelBundleValidator.sha256(bundleDirectory.resolve(filename)))
                         .as(filename)
                         .isEqualTo(expected));
     }

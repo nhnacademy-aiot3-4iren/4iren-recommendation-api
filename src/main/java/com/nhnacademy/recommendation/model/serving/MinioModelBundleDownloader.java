@@ -18,7 +18,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 
 @Slf4j
-public class MinioModelBundleDownloader implements ModelBundleLoader {
+public class MinioModelBundleDownloader {
 
     private static final String MANIFEST_FILENAME = "manifest.json";
 
@@ -37,8 +37,7 @@ public class MinioModelBundleDownloader implements ModelBundleLoader {
         this.objectMapper = objectMapper;
     }
 
-    @Override
-    public ValidatedModelBundle loadAndValidate() {
+    public ValidatedModelBundle downloadAndValidate() {
         validateConfiguration();
         Path cacheDirectory = properties.resolveCacheDirectory().toAbsolutePath().normalize();
         Path stagingDirectory = null;
@@ -90,14 +89,6 @@ public class MinioModelBundleDownloader implements ModelBundleLoader {
             cleanupStaging(stagingDirectory);
             throw new ModelServingException("MinIO 모델 Bundle 다운로드에 실패했습니다.", e);
         }
-    }
-
-    /**
-     * @deprecated use {@link #loadAndValidate()} through {@link ModelBundleLoader}.
-     */
-    @Deprecated(forRemoval = false)
-    public ValidatedModelBundle downloadAndValidate() {
-        return loadAndValidate();
     }
 
     private void downloadObject(String filename, Path stagingDirectory) throws Exception {

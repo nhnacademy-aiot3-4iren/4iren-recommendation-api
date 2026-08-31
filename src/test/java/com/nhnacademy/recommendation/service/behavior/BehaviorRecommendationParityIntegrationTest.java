@@ -7,7 +7,7 @@ import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendation;
 import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendationResult;
 import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendationResult.HvacSchedule;
 import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendationResult.VentilationSchedule;
-import com.nhnacademy.recommendation.model.serving.ModelBundleLoader;
+import com.nhnacademy.recommendation.model.serving.MinioModelBundleDownloader;
 import com.nhnacademy.recommendation.model.serving.ModelBundleValidator;
 import com.nhnacademy.recommendation.model.serving.ModelServingInfrastructure;
 import com.nhnacademy.recommendation.model.serving.OnnxSmokeTester;
@@ -30,11 +30,16 @@ class BehaviorRecommendationParityIntegrationTest {
 
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         ValidatedModelBundle bundle = new ModelBundleValidator(objectMapper).validate(bundleDirectory);
-        ModelBundleLoader loader = () -> bundle;
+        MinioModelBundleDownloader downloader = new MinioModelBundleDownloader(null, null, null, null) {
+            @Override
+            public ValidatedModelBundle downloadAndValidate() {
+                return bundle;
+            }
+        };
 
         try (OrtEnvironment environment = OrtEnvironment.getEnvironment("behavior-parity-integration-test")) {
             ModelServingInfrastructure infrastructure = new ModelServingInfrastructure(
-                    loader,
+                    downloader,
                     objectMapper,
                     environment,
                     new OnnxSmokeTester(objectMapper, environment)

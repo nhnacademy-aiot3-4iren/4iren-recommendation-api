@@ -8,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ModelServingInfrastructure implements AutoCloseable {
 
-    private final ModelBundleLoader bundleLoader;
+    private final MinioModelBundleDownloader bundleDownloader;
     private final ObjectMapper objectMapper;
     private final OrtEnvironment ortEnvironment;
     private final OnnxSmokeTester smokeTester;
@@ -18,11 +18,11 @@ public class ModelServingInfrastructure implements AutoCloseable {
     private volatile RuntimeArtifactStore runtimeArtifacts;
     private volatile OnnxSessionRegistry sessions;
 
-    public ModelServingInfrastructure(ModelBundleLoader bundleLoader,
+    public ModelServingInfrastructure(MinioModelBundleDownloader bundleDownloader,
                                       ObjectMapper objectMapper,
                                       OrtEnvironment ortEnvironment,
                                       OnnxSmokeTester smokeTester) {
-        this.bundleLoader = bundleLoader;
+        this.bundleDownloader = bundleDownloader;
         this.objectMapper = objectMapper;
         this.ortEnvironment = ortEnvironment;
         this.smokeTester = smokeTester;
@@ -33,7 +33,7 @@ public class ModelServingInfrastructure implements AutoCloseable {
             return;
         }
 
-        ValidatedModelBundle loadedBundle = bundleLoader.loadAndValidate();
+        ValidatedModelBundle loadedBundle = bundleDownloader.downloadAndValidate();
         SpringServingContract loadedContract = SpringServingContract.load(
                 ModelBundleValidator.resolveInside(
                         loadedBundle.directory(), loadedBundle.manifest().contractFilename()
