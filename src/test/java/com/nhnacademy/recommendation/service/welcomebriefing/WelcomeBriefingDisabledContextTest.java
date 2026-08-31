@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nhnacademy.recommendation.controller.WelcomeBriefingController;
 import com.nhnacademy.recommendation.service.behavior.BehaviorRecommendationService;
 import com.nhnacademy.recommendation.service.core.CoreRoomService;
+import com.nhnacademy.recommendation.service.core.CoreSensorService;
 import com.nhnacademy.recommendation.service.core.CoreWeatherService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,7 @@ class WelcomeBriefingDisabledContextTest {
             .withBean(ObjectMapper.class, ObjectMapper::new)
             .withBean(CoreWeatherService.class, () -> mock(CoreWeatherService.class))
             .withBean(CoreRoomService.class, () -> mock(CoreRoomService.class))
+            .withBean(CoreSensorService.class, () -> mock(CoreSensorService.class))
             .withBean(WelcomeBriefingPolicyService.class, () -> mock(WelcomeBriefingPolicyService.class))
             .withUserConfiguration(WelcomeBriefingGraphConfiguration.class);
 
@@ -32,6 +34,7 @@ class WelcomeBriefingDisabledContextTest {
         contextRunner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).hasSingleBean(WelcomeBriefingController.class);
+            assertThat(context).hasSingleBean(WelcomeBriefingCacheService.class);
             assertThat(context).hasSingleBean(WelcomeBriefingService.class);
             assertThat(context).doesNotHaveBean(BehaviorRecommendationService.class);
         });
@@ -40,6 +43,7 @@ class WelcomeBriefingDisabledContextTest {
     @Configuration(proxyBeanMethods = false)
     @Import({
             WelcomeBriefingController.class,
+            WelcomeBriefingCacheService.class,
             WelcomeBriefingService.class,
             BehaviorRecommendationService.class
     })

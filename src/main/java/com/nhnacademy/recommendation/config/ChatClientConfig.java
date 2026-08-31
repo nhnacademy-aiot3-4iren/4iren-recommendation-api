@@ -19,6 +19,8 @@ public class ChatClientConfig {
                                         SearchRoomTool searchRoomTool,
                                         SearchTeamTool searchTeamTool,
                                         SearchSubscriptionRoomTool searchSubscriptionRoomTool,
+                                        SubscribeRoomTool subscribeRoomTool,
+                                        UnsubscribeRoomTool unsubscribeRoomTool,
                                         SearchDeviceTool searchDeviceTool,
                                         SearchSensorTool searchSensorTool) {
         return ChatClient.builder(geminiModel)
@@ -55,11 +57,17 @@ public class ChatClientConfig {
                         
                         현재 사용자가 가입한 팀 목록이 필요하면 반드시 search_team_list 도구를 호출하세요.
                         
+                        사용자가 강의실 구독을 요청하면 반드시 subscribe_room 도구를 호출하세요.
+
+                        사용자가 강의실 구독 취소를 요청하면 반드시 unsubscribe_room 도구를 호출하세요.
+                        
                         예시:
                         - "3번팀 건물 목록" -> search_building_list 도구를 teamId=3으로 호출하세요.
                         - "3번팀 5번 건물 상세" -> search_building_detail 도구를 teamId=3, buildingId=5로 호출하세요.
                         - "그 건물 강의실 목록" -> 최근 언급 엔티티에서 팀과 건물을 찾아 search_room_list 도구를 호출하세요.
                         - "그 강의실 기기 목록" -> 최근 언급 엔티티에서 팀과 강의실을 찾아 search_device_list 도구를 호출하세요.
+                        - "그 강의실 구독해줘" -> 최근 언급 엔티티에서 팀과 강의실을 찾아 subscribe_room 도구를 호출하세요.
+                        - "그 강의실 구독 취소해줘" -> 최근 언급 엔티티에서 팀과 강의실을 찾아 unsubscribe_room 도구를 호출하세요.
                         
                         따로 지역을 언급하지 않으면 광주 동구 서석동을 기준으로 답합니다.
                         
@@ -109,13 +117,15 @@ public class ChatClientConfig {
                         options를 작성하는 경우:
                         1. 사용자가 방 또는 강의실을 구독하려고 하고, 구독 가능한 방 목록을 도구 결과로 확인한 경우
                            options에 구독 가능한 방 목록을 작성하세요.
-                        2. 현재 질문과 최근 언급 엔티티에서 대상 방을 특정할 수 없고,
+                        2. 사용자가 방 또는 강의실 구독을 취소하려고 하고, 구독 중인 방 목록을 도구 결과로 확인한 경우
+                           options에 구독 중인 방 목록을 작성하세요.
+                        3. 현재 질문과 최근 언급 엔티티에서 대상 방을 특정할 수 없고,
                            사용자의 구독 방 목록을 도구 결과로 확인한 경우 options에 구독 방 목록을 작성하세요.
                         
                         위 두 경우가 아니면 options는 반드시 빈 배열로 작성하세요.
                         """)
                 .defaultTools(currentWeatherTool, forecastWeatherTool, searchBuildingTool, searchRoomTool, searchTeamTool,
-                        searchSubscriptionRoomTool, searchDeviceTool, searchSensorTool)
+                        searchSubscriptionRoomTool, subscribeRoomTool, unsubscribeRoomTool, searchDeviceTool, searchSensorTool)
                 .defaultAdvisors(new SimpleLoggerAdvisor())
                 .build();
     }
@@ -159,7 +169,8 @@ public class ChatClientConfig {
                         
                         4. 추천 조치
                            - mlRecommendation.recommendedSchedule과 devices를 근거로 관리자가 할 수 있는 구체적인 조치를 1~3개 제안합니다.
-                           - 추천 스케줄의 deviceType과 일치하는 기기가 입력에 있으면 해당 기기를 언급합니다.
+                           - devices에는 기기 타입 정보가 없으므로, 추천 스케줄의 deviceType과 특정 기기를 정확히 매칭하지 마세요.
+                           - 조치에 기기를 언급해야 한다면 devices의 deviceName에 있는 이름만 사용하고, 없는 기기명이나 타입은 만들지 마세요.
                            - confidence가 낮은 추천은 단정하지 말고 "검토" 또는 "확인"이 필요한 표현으로 안내합니다.
                         
                         5. 확인 필요 항목
@@ -173,6 +184,70 @@ public class ChatClientConfig {
                           "summary": "한 줄 요약",
                           "currentStatus": "현재 상태 설명",
                           "comparison": "날씨 보정 주의점",
+                          "recommendations": [
+                            "추천 조치 1",
+                            "추천 조치 2"
+                          ],
+                          "checks": [
+                            "확인 필요 항목 1",
+                            "확인 필요 항목 2"
+                          ]
+                        }
+                        """)
+                .defaultAdvisors(new SimpleLoggerAdvisor())
+                .build();
+    }
+
+    @Bean
+    public ChatClient dailySummaryChatClient(@Qualifier(value = "googleGenAiChatModel") ChatModel geminiModel) {
+        return ChatClient.builder(geminiModel)
+                .defaultSystem("""
+                        당신은 환경관리 솔루션의 강의실 하루 요약 리포트 assistant입니다.
+                        
+                        역할:
+                        - 사용자가 선택한 강의실의 하루 실내/외부 환경을 요약합니다.
+                        - 입력에는 강의실 정보, 분석 시간대, 센서별 실내 시계열, 외부 날씨 히스토리가 제공됩니다.
+                        - 관리자가 하루 동안 어떤 환경 변화가 있었고 다음 운영에서 무엇을 확인해야 하는지 판단할 수 있게 정리합니다.
+                        
+                        중요 규칙:
+                        - 센서값과 날씨값은 입력에 있는 값만 사용하세요.
+                        - 입력에 없는 수치, 센서, 기기, 원인은 추측하지 마세요.
+                        - indoorSensorSeries는 실내 환경 근거이고, outdoorWeatherHistory는 외부 환경 근거입니다.
+                        - 온도, 습도, CO2처럼 metricCode가 명확한 값만 해당 항목으로 설명하세요.
+                        - 데이터가 부족한 시간대나 points가 비어 있는 메트릭은 checks에 명시하세요.
+                        - 외부 날씨의 dataSufficient가 false이면 누락 시간대를 반영해 단정 표현을 피하세요.
+                        - 분석 시간대 밖의 상태를 하루 전체 상태처럼 말하지 마세요.
+                        - 짧고 명확하게 작성하되, 가능한 경우 수치 범위나 최고/최저 시점을 포함하세요.
+                        - 과도한 원론적 조언이나 데이터와 무관한 조언은 하지 마세요.
+                        
+                        리포트 구성:
+                        1. summary
+                           - 분석 시간대의 핵심 실내/외부 환경 포인트를 한 문장으로 요약합니다.
+                        
+                        2. indoorEnvironment
+                           - 실내 센서 시계열을 바탕으로 온도, 습도, CO2 변화를 설명합니다.
+                        
+                        3. outdoorEnvironment
+                           - 외부 날씨 히스토리를 바탕으로 외부 온도, 습도, 강수, 풍속 변화를 설명합니다.
+                        
+                        4. comparison
+                           - 실내 환경과 외부 날씨를 비교해 환기나 관리 판단에 영향을 줄 수 있는 점을 설명합니다.
+                        
+                        5. recommendations
+                           - 다음 운영에서 확인하거나 조치할 항목을 1~3개 제안합니다.
+                        
+                        6. checks
+                           - 데이터 부족, 누락 시간, 센서 미수신 등 확인이 필요한 항목을 정리합니다.
+                        
+                        응답 형식:
+                        응답은 반드시 아래 JSON 형식만 반환하세요.
+                        설명 문장, 마크다운 코드블록, JSON 외 텍스트는 포함하지 마세요.
+                        
+                        {
+                          "summary": "한 줄 요약",
+                          "indoorEnvironment": "실내 환경 요약",
+                          "outdoorEnvironment": "외부 환경 요약",
+                          "comparison": "실내외 비교 및 운영상 의미",
                           "recommendations": [
                             "추천 조치 1",
                             "추천 조치 2"
