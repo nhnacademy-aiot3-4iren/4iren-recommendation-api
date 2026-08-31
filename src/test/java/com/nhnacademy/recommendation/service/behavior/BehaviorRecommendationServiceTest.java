@@ -42,4 +42,15 @@ class BehaviorRecommendationServiceTest {
         assertThat(BehaviorRecommendationService.chooseStopAfterStart(probabilities, 5, null, 1))
                 .isNull();
     }
+
+    @Test
+    void omitsSessionWhenNoPositiveFiniteStopExists() {
+        double[] zeroProbabilities = {0.4, 0.0, 0.0, 0.0};
+        double[] invalidProbabilities = {0.4, Double.NaN, Double.NEGATIVE_INFINITY};
+
+        assertThat(BehaviorRecommendationService.chooseStopAfterStart(zeroProbabilities, 0, null, 1))
+                .isNull();
+        assertThat(BehaviorRecommendationService.chooseStopAfterStart(invalidProbabilities, 0, null, 1))
+                .isNull();
+    }
 }

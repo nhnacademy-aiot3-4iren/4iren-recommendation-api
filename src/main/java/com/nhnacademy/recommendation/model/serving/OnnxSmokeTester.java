@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -44,12 +45,7 @@ public class OnnxSmokeTester {
             runFixtureCase("temperature", coreModels.path("temperature"), contract, registry, executed);
             runFixtureCase("humidity", coreModels.path("humidity"), contract, registry, executed);
 
-            JsonNode behaviorCase = fixture.path("behavior").path("requests").path(0);
-            JsonNode dailyUsageInput = behaviorCase.path("dailyUsageInput");
-            if (!dailyUsageInput.isObject()) {
-                throw new BundleValidationException("parity fixture에 behavior dailyUsageInput이 없습니다.");
-            }
-            Map<String, Object> dailyRow = jsonObjectToMap(dailyUsageInput);
+            Map<String, Object> dailyRow = behaviorDailyRow(fixture.path("behavior"), contract);
             runModel("behavior.dailyUsage.AIR_CONDITIONER", List.of(dailyRow), contract, registry, executed);
             runModel("behavior.dailyUsage.HEATER", List.of(dailyRow), contract, registry, executed);
 
@@ -111,6 +107,7 @@ public class OnnxSmokeTester {
                                 "smoke inference output 값이 null입니다: model=" + modelKey + " output=" + outputName
                         );
                     }
+                    requireFinite(output.getValue(), modelKey, outputName);
                 }
             }
             executed.add(modelKey);
@@ -126,6 +123,52 @@ public class OnnxSmokeTester {
                     log.warn("[ModelServing] smoke input tensor 종료에 실패했습니다. model={}", modelKey, e);
                 }
             });
+        }
+    }
+
+    private Map<String, Object> behaviorDailyRow(JsonNode behaviorFixture,
+                                                  SpringServingContract contract) {
+        JsonNode legacyInput = behaviorFixture.path("requests").path(0).path("dailyUsageInput");
+        if (legacyInput.isObject()) {
+            return jsonObjectToMap(legacyInput);
+        }
+
+        JsonNode serviceRequest = behaviorFixture.path("serviceRequests").path(0);
+        String dateText = serviceRequest.path("predictionDate").asText(null);
+        String location = serviceRequest.path("location").asText(null);
+        String regime = serviceRequest.path("temperatureRegime").asText(null);
+        if (dateText == null || location == null || regime == null) {
+            throw new BundleValidationException(
+                    "parity fixture에 Behavior smoke 입력(requests 또는 serviceRequests)이 없습니다."
+            );
+        }
+
+        LocalDate date = LocalDate.parse(dateText);
+        int weekday = date.getDayOfWeek().getValue() - 1;
+        int dayOfYear = date.getDayOfYear();
+        SpringServingContract.BehaviorOrchestrationSpec spec = contract.behaviorOrchestration();
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("location", location);
+        row.put("temperature_regime", regime);
+        row.put("weekday_sin", (float) Math.sin(2.0 * Math.PI * weekday / spec.weekdayCycle()));
+        row.put("weekday_cos", (float) Math.cos(2.0 * Math.PI * weekday / spec.weekdayCycle()));
+        row.put("day_of_year_sin", (float) Math.sin(2.0 * Math.PI * dayOfYear / spec.dayOfYearCycle()));
+        row.put("day_of_year_cos", (float) Math.cos(2.0 * Math.PI * dayOfYear / spec.dayOfYearCycle()));
+        return row;
+    }
+
+    private void requireFinite(Object value, String modelKey, String outputName) {
+        if ((value instanceof Float floatValue && !Float.isFinite(floatValue))
+                || (value instanceof Double doubleValue && !Double.isFinite(doubleValue))) {
+            throw new BundleValidationException(
+                    "smoke inference output에 NaN/Inf가 있습니다: model=" + modelKey + " output=" + outputName
+            );
+        }
+        if (value.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(value);
+            for (int index = 0; index < length; index++) {
+                requireFinite(java.lang.reflect.Array.get(value, index), modelKey, outputName);
+            }
         }
     }
 

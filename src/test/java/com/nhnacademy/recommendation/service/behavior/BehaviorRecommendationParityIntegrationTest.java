@@ -50,25 +50,39 @@ class BehaviorRecommendationParityIntegrationTest {
                 JsonNode fixture = objectMapper.readTree(
                         bundle.directory().resolve(bundle.manifest().parityFixtureFilename()).toFile()
                 );
-                double relativeTolerance = fixture.path("tolerances").path("rtol").doubleValue();
-                double absoluteTolerance = fixture.path("tolerances").path("atol").doubleValue();
-                JsonNode requests = fixture.path("behavior").path("requests");
+                JsonNode behaviorFixture = fixture.path("behavior");
+                boolean legacyFixture = behaviorFixture.path("requests").isArray();
+                double relativeTolerance = legacyFixture
+                        ? fixture.path("tolerances").path("rtol").doubleValue()
+                        : behaviorFixture.path("rtol").doubleValue();
+                double absoluteTolerance = legacyFixture
+                        ? fixture.path("tolerances").path("atol").doubleValue()
+                        : behaviorFixture.path("atol").doubleValue();
+                JsonNode requests = legacyFixture
+                        ? behaviorFixture.path("requests")
+                        : behaviorFixture.path("serviceRequests");
                 assertThat(requests).hasSize(4);
 
                 for (JsonNode parityCase : requests) {
-                    JsonNode request = parityCase.path("request");
+                    JsonNode request = legacyFixture ? parityCase.path("request") : parityCase;
                     LocalDate predictionDate = LocalDate.parse(request.path("predictionDate").asText());
                     Long roomId = request.path("roomId").longValue();
 
                     BehaviorRecommendationResult actual = service.recommendWithDiagnostics(predictionDate, roomId);
-                    assertContext(actual.recommendation(), parityCase.path("expectedResponse"), request);
+                    assertContext(actual.recommendation(),
+                            legacyFixture ? parityCase.path("expectedResponse") : null, request);
                     assertThat(actual.temperatureRegime())
-                            .isEqualTo(parityCase.path("expectedTemperatureRegime").asText());
-                    assertDailyUsage(actual, parityCase.path("expectedDailyUsage"), relativeTolerance,
+                            .isEqualTo(parityCase.path(legacyFixture
+                                    ? "expectedTemperatureRegime" : "temperatureRegime").asText());
+                    assertDailyUsage(actual, parityCase.path(legacyFixture
+                                    ? "expectedDailyUsage" : "dailyUsage"), relativeTolerance,
                             absoluteTolerance);
-                    assertEventSchedule(actual, parityCase.path("expectedEventSchedule"), relativeTolerance,
+                    assertEventSchedule(actual, parityCase.path(legacyFixture
+                                    ? "expectedEventSchedule" : "eventSchedule"), relativeTolerance,
                             absoluteTolerance);
-                    assertSchedule(actual.recommendation(), parityCase.path("expectedResponse"), relativeTolerance,
+                    assertSchedule(actual.recommendation(), legacyFixture
+                                    ? parityCase.path("expectedResponse").path("recommendedSchedule")
+                                    : parityCase.path("recommendedSchedule"), relativeTolerance,
                             absoluteTolerance);
 
                     System.out.printf("Behavior parity PASS: predictionDate=%s roomId=%d location=%s%n",
@@ -81,15 +95,21 @@ class BehaviorRecommendationParityIntegrationTest {
     }
 
     private void assertContext(BehaviorRecommendation actual, JsonNode expectedResponse, JsonNode request) {
-        JsonNode expected = expectedResponse.path("context");
-        assertThat(actual.schemaVersion()).isEqualTo(expectedResponse.path("schemaVersion").asText());
-        assertThat(actual.recommendationType()).isEqualTo(expectedResponse.path("recommendationType").asText());
-        assertThat(actual.context().predictionDate().toString()).isEqualTo(expected.path("predictionDate").asText());
-        assertThat(actual.context().weekday().name()).isEqualTo(expected.path("weekday").asText());
-        assertThat(actual.context().roomId()).isEqualTo(expected.path("roomId").longValue());
-        assertThat(actual.context().location()).isEqualTo(expected.path("location").asText());
+        if (expectedResponse != null) {
+            JsonNode expected = expectedResponse.path("context");
+            assertThat(actual.schemaVersion()).isEqualTo(expectedResponse.path("schemaVersion").asText());
+            assertThat(actual.recommendationType()).isEqualTo(expectedResponse.path("recommendationType").asText());
+            assertThat(actual.context().predictionDate().toString())
+                    .isEqualTo(expected.path("predictionDate").asText());
+            assertThat(actual.context().weekday().name()).isEqualTo(expected.path("weekday").asText());
+            assertThat(actual.context().roomId()).isEqualTo(expected.path("roomId").longValue());
+            assertThat(actual.context().location()).isEqualTo(expected.path("location").asText());
+            assertThat(actual.context().timezone()).isEqualTo(expected.path("timezone").asText());
+        }
+        assertThat(actual.context().predictionDate().toString())
+                .isEqualTo(request.path("predictionDate").asText());
+        assertThat(actual.context().roomId()).isEqualTo(request.path("roomId").longValue());
         assertThat(actual.context().location()).isEqualTo(request.path("location").asText());
-        assertThat(actual.context().timezone()).isEqualTo(expected.path("timezone").asText());
     }
 
     private void assertDailyUsage(BehaviorRecommendationResult actual,
@@ -164,10 +184,9 @@ class BehaviorRecommendationParityIntegrationTest {
     }
 
     private void assertSchedule(BehaviorRecommendation actual,
-                                JsonNode expectedResponse,
+                                JsonNode expected,
                                 double rtol,
                                 double atol) {
-        JsonNode expected = expectedResponse.path("recommendedSchedule");
         assertThat(actual.recommendedSchedule()).hasSize(expected.size());
         for (int index = 0; index < actual.recommendedSchedule().size(); index++) {
             BehaviorRecommendation.ScheduleItem item = actual.recommendedSchedule().get(index);

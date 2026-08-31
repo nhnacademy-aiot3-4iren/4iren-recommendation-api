@@ -96,7 +96,6 @@ public class WelcomeBriefingService {
         RoomDevicesResponse devices = coreRoomService.getRoomDevices(roomId);
 
         // 3. 팀별 외부 날씨 브리핑 정책을 조회한다.
-        //    - 지금은 기본값을 사용하고, 이후 팀별 설정 DB/API가 생기면 이 메서드만 교체한다.
         WelcomeBriefingPolicyDto briefingPolicy = welcomeBriefingPolicyService.getPolicyOrDefault(teamId, roomId);
 
         // 4. 강의실 지역명 기준으로 외부 날씨와 오늘 예보를 조회한다.

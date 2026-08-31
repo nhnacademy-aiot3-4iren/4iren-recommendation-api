@@ -655,13 +655,16 @@ public class BehaviorRecommendationService {
         if (firstStop >= lastExclusive) {
             return null;
         }
-        int selected = firstStop;
-        for (int index = firstStop + 1; index < lastExclusive; index++) {
-            if (stopProbability[index] > stopProbability[selected]) {
+        Integer selected = null;
+        for (int index = firstStop; index < lastExclusive; index++) {
+            if (!Double.isFinite(stopProbability[index])) {
+                continue;
+            }
+            if (selected == null || stopProbability[index] > stopProbability[selected]) {
                 selected = index;
             }
         }
-        return selected;
+        return selected == null || stopProbability[selected] <= 0.0 ? null : selected;
     }
 
     private VentilationBuild buildVentilation(ComparableHistory comparable,
