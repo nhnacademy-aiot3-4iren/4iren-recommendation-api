@@ -35,7 +35,7 @@ import java.util.List;
 public class WelcomeBriefingService {
 
     private static final ZoneId BEHAVIOR_ZONE_ID = ZoneId.of("Asia/Seoul");
-    private static final LocalTime WELCOME_BRIEFING_CUTOFF_TIME = LocalTime.of(10, 0);
+    private static final LocalTime WELCOME_BRIEFING_CUTOFF_TIME = LocalTime.of(23, 59);
 
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
