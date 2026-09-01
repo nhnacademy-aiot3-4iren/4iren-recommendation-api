@@ -39,13 +39,17 @@ class SearchSensorToolTest {
     @Mock
     MentionedEntityResolver mentionedEntityResolver;
 
+    SensorToolAccessPolicy sensorToolAccessPolicy;
+
     SearchSensorTool tool;
     LlmRequestContext context;
 
     @BeforeEach
     void setUp() {
         context = new LlmRequestContext(1L, UserRole.ADMIN, LlmConversationContext.empty());
-        tool = new SearchSensorTool(coreSensorService, contextHolder, conversationContextService, mentionedEntityResolver);
+        sensorToolAccessPolicy = new SensorToolAccessPolicy();
+        tool = new SearchSensorTool(coreSensorService, contextHolder, conversationContextService,
+                mentionedEntityResolver, sensorToolAccessPolicy);
     }
 
     @Test
@@ -79,7 +83,7 @@ class SearchSensorToolTest {
         ToolResult<List<SensorLocationResponse>> result = tool.getSensorListByRoom(3L, 20L);
 
         assertThat(result.success()).isFalse();
-        assertThat(result.code()).isEqualTo("ACCESS_DENIED_ROLE");
+        assertThat(result.code()).isEqualTo("ACCESS_DENIED_SENSOR_DATA");
         assertThat(result.data()).isNull();
         verifyNoInteractions(coreSensorService);
         verifyNoInteractions(conversationContextService);
@@ -123,7 +127,7 @@ class SearchSensorToolTest {
         given(contextHolder.get()).willReturn(context);
         given(mentionedEntityResolver.resolve(3L, MentionedEntityType.TEAM)).willReturn(3L);
         given(mentionedEntityResolver.resolve(20L, MentionedEntityType.ROOM)).willReturn(20L);
-        given(coreSensorService.getSensorListByRoom(1L, UserRole.NORMAL, 3L, 20L)).willThrow(new RuntimeException());
+        given(coreSensorService.getSensorListByRoom(1L, UserRole.ADMIN, 3L, 20L)).willThrow(new RuntimeException());
 
         ToolResult<List<SensorLocationResponse>> result = tool.getSensorListByRoom(3L, 20L);
 
