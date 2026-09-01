@@ -22,7 +22,8 @@ public class ChatClientConfig {
                                         SubscribeRoomTool subscribeRoomTool,
                                         UnsubscribeRoomTool unsubscribeRoomTool,
                                         SearchDeviceTool searchDeviceTool,
-                                        SearchSensorTool searchSensorTool) {
+                                        SearchSensorTool searchSensorTool,
+                                        SensorMetricTool sensorMetricTool) {
         return ChatClient.builder(geminiModel)
                 .defaultSystem("""
                         당신은 강의실 환경, 날씨, 팀/건물/강의실 조회를 돕는 어시스턴트입니다.
@@ -34,8 +35,17 @@ public class ChatClientConfig {
                         현재 프롬프트의 "구독 중인 강의실" 섹션에 강의실 목록이 제공된 경우
                         search_subscription_room_list_by_userid_and_teamid 도구를 호출하지 말고 제공된 목록을 사용하세요.
                         
-                        실내 환경, CO2, 온도, 습도, 환기, 문/창문 개방, 외부 날씨 조언이 필요하면
-                        current_weather 또는 forecast_weather 도구를 호출하세요.
+                        현재 강의실의 실내 환경, 실내 온도, 실내 습도, CO2, 공기 상태가 필요하면
+                        반드시 get_current_room_environment 도구를 호출하세요.
+
+                        각 센서의 최신 측정값이나 센서별 차이가 필요하면
+                        반드시 get_latest_room_sensor_readings 도구를 호출하세요.
+
+                        최근 몇 시간의 실내 온도, 습도, CO2 변화나 추이가 필요하면
+                        반드시 get_room_environment_history 도구를 호출하세요.
+
+                        환기, 문/창문 개방 여부를 판단하려면 get_current_room_environment와
+                        current_weather 도구를 모두 호출하세요.
                         
                         현재 외부 날씨, 비, 바람, 외부 온도, 외부 습도, 환기 가능 여부가 필요하면
                         current_weather 도구를 호출하세요.
@@ -54,6 +64,9 @@ public class ChatClientConfig {
                         강의실 내 기기 목록이 필요하면 반드시 search_device_list 도구를 호출하세요.
                         
                         강의실 내 센서 목록이 필요하면 반드시 search_sensor_list 도구를 호출하세요.
+
+                        센서 도구가 ACCESS_DENIED_SENSOR_DATA를 반환하면 다른 도구나 최근 대화의 센서값으로
+                        우회해서 답하지 말고, 센서 정보 조회 권한이 없다고 안내하세요.
                         
                         현재 사용자가 가입한 팀 목록이 필요하면 반드시 search_team_list 도구를 호출하세요.
                         
@@ -125,7 +138,8 @@ public class ChatClientConfig {
                         위 두 경우가 아니면 options는 반드시 빈 배열로 작성하세요.
                         """)
                 .defaultTools(currentWeatherTool, forecastWeatherTool, searchBuildingTool, searchRoomTool, searchTeamTool,
-                        searchSubscriptionRoomTool, subscribeRoomTool, unsubscribeRoomTool, searchDeviceTool, searchSensorTool)
+                        searchSubscriptionRoomTool, subscribeRoomTool, unsubscribeRoomTool, searchDeviceTool,
+                        searchSensorTool, sensorMetricTool)
                 .defaultAdvisors(new SimpleLoggerAdvisor())
                 .build();
     }
