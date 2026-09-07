@@ -3,6 +3,7 @@ package com.nhnacademy.recommendation.controller;
 import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.llm.LlmRequestDto;
 import com.nhnacademy.recommendation.dto.llm.LlmResponseDto;
+import com.nhnacademy.recommendation.controller.api.LlmApi;
 import com.nhnacademy.recommendation.service.LlmService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Slf4j
 @RequiredArgsConstructor
-public class LlmController {
+public class LlmController implements LlmApi {
 
     private final LlmService llmService;
 

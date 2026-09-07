@@ -2,6 +2,7 @@ package com.nhnacademy.recommendation.controller;
 
 import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingRequest;
 import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingResponse;
+import com.nhnacademy.recommendation.controller.api.WelcomeBriefingApi;
 import com.nhnacademy.recommendation.service.core.CoreRequestValidator;
 import com.nhnacademy.recommendation.service.welcomebriefing.WelcomeBriefingCacheService;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,7 @@ import java.time.ZoneId;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/welcome-briefing")
-public class WelcomeBriefingController {
+public class WelcomeBriefingController implements WelcomeBriefingApi {
 
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
