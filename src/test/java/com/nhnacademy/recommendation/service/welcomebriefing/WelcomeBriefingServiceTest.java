@@ -22,6 +22,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -90,13 +92,14 @@ class WelcomeBriefingServiceTest {
         );
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(longs = {1L, 2L, 3L, 6L, 7L, 8L})
     @DisplayName("현재 센서 데이터와 ML 추천 스케줄, 조회 데이터를 조합해 LLM 웰컴 브리핑을 생성한다")
-    void generateWelcomeBriefing() throws Exception {
-        RoomDetailResponse room = new RoomDetailResponse(10L, 100L, "본관", "101호", "실습실", 0L, 0L);
-        RoomRegionResponse region = new RoomRegionResponse(10L, "광주");
+    void generateWelcomeBriefing(long roomId) throws Exception {
+        RoomDetailResponse room = new RoomDetailResponse(roomId, 100L, "본관", "101호", "실습실", 0L, 0L);
+        RoomRegionResponse region = new RoomRegionResponse(roomId, "광주");
         RoomDevicesResponse devices = new RoomDevicesResponse(
-                10L,
+                roomId,
                 "101호",
                 List.of(new RoomDevicesResponse.DeviceSummary(1L, "환기장치"))
         );
@@ -159,15 +162,16 @@ class WelcomeBriefingServiceTest {
                 List.of("12:00~12:30 환기장치 사용을 검토하세요."),
                 List.of("센서 수신 상태를 확인하세요.")
         );
-        BehaviorRecommendation behaviorRecommendation = behaviorRecommendation();
+        BehaviorRecommendation behaviorRecommendation = behaviorRecommendation(roomId);
 
         given(behaviorRecommendationServiceProvider.getIfAvailable()).willReturn(behaviorRecommendationService);
-        given(behaviorRecommendationService.recommend(PREDICTION_DATE, 10L)).willReturn(behaviorRecommendation);
-        given(coreSensorService.getSensorMetricSummaryInternal(10L)).willReturn(sensorMetricSummary());
-        given(coreRoomService.getRoomDetailInternal(10L)).willReturn(room);
-        given(coreRoomService.getRoomRegion(10L)).willReturn(region);
-        given(coreRoomService.getRoomDevices(10L)).willReturn(devices);
-        given(policyService.getPolicyOrDefault(3L, 10L))
+        given(behaviorRecommendationService.recommend(PREDICTION_DATE, roomId, "실습실"))
+                .willReturn(behaviorRecommendation);
+        given(coreSensorService.getSensorMetricSummaryInternal(roomId)).willReturn(sensorMetricSummary());
+        given(coreRoomService.getRoomDetailInternal(roomId)).willReturn(room);
+        given(coreRoomService.getRoomRegion(roomId)).willReturn(region);
+        given(coreRoomService.getRoomDevices(roomId)).willReturn(devices);
+        given(policyService.getPolicyOrDefault(3L, roomId))
                 .willReturn(new WelcomeBriefingPolicyDto(30, 60, 8.0, 70, true));
         given(weatherService.getCurrentWeather("광주")).willReturn(currentWeather);
         given(weatherService.getForecastWeather("광주")).willReturn(forecastWeather);
@@ -176,10 +180,10 @@ class WelcomeBriefingServiceTest {
         given(requestSpec.call()).willReturn(callResponseSpec);
         given(callResponseSpec.entity(WelcomeBriefingResponse.class)).willReturn(expected);
 
-        WelcomeBriefingResponse result = service.generateWelcomeBriefing(3L, 10L);
+        WelcomeBriefingResponse result = service.generateWelcomeBriefing(3L, roomId);
 
         assertThat(result).isEqualTo(expected);
-        verify(behaviorRecommendationService).recommend(PREDICTION_DATE, 10L);
+        verify(behaviorRecommendationService).recommend(PREDICTION_DATE, roomId, "실습실");
 
         ArgumentCaptor<String> contextCaptor = ArgumentCaptor.forClass(String.class);
         verify(requestSpec).user(contextCaptor.capture());
@@ -189,7 +193,7 @@ class WelcomeBriefingServiceTest {
         );
 
         assertThat(context.room().location()).isEqualTo("회의실");
-        assertThat(context.mlRecommendation()).isEqualTo(welcomeBriefingMlRecommendation());
+        assertThat(context.mlRecommendation()).isEqualTo(welcomeBriefingMlRecommendation(roomId));
         assertThat(context.currentSensor().temperatureC()).isEqualTo(25.0);
         assertThat(context.currentSensor().humidityPercent()).isEqualTo(42.0);
         assertThat(context.currentSensor().co2Ppm()).isEqualTo(980.0);
@@ -207,28 +211,34 @@ class WelcomeBriefingServiceTest {
     @DisplayName("Behavior 추천 실패를 고정 스케줄로 숨기지 않고 그대로 전파한다")
     void generateWelcomeBriefing_BehaviorRecommendationFailure() {
         ModelServingException failure = new ModelServingException("ONNX inference failed");
+        RoomDetailResponse room = new RoomDetailResponse(10L, 100L, "본관", "101호", "실습실", 0L, 0L);
+        given(coreRoomService.getRoomDetailInternal(10L)).willReturn(room);
         given(behaviorRecommendationServiceProvider.getIfAvailable()).willReturn(behaviorRecommendationService);
-        given(behaviorRecommendationService.recommend(PREDICTION_DATE, 10L)).willThrow(failure);
+        given(behaviorRecommendationService.recommend(PREDICTION_DATE, 10L, "실습실")).willThrow(failure);
 
         assertThatThrownBy(() -> service.generateWelcomeBriefing(3L, 10L))
                 .isSameAs(failure);
 
-        verify(behaviorRecommendationService).recommend(PREDICTION_DATE, 10L);
-        verifyNoInteractions(coreSensorService, coreRoomService, weatherService, policyService, chatClient);
+        verify(behaviorRecommendationService).recommend(PREDICTION_DATE, 10L, "실습실");
+        verify(coreRoomService).getRoomDetailInternal(10L);
+        verifyNoInteractions(coreSensorService, weatherService, policyService, chatClient);
     }
 
     @Test
     @DisplayName("Model serving이 비활성화되면 fake 추천 없이 명확하게 실패한다")
     void generateWelcomeBriefing_ModelServingDisabled() {
+        RoomDetailResponse room = new RoomDetailResponse(10L, 100L, "본관", "101호", "실습실", 0L, 0L);
+        given(coreRoomService.getRoomDetailInternal(10L)).willReturn(room);
+
         assertThatThrownBy(() -> service.generateWelcomeBriefing(3L, 10L))
                 .isInstanceOf(ModelServingException.class)
                 .hasMessage("Model serving이 비활성화되어 Behavior 추천을 생성할 수 없습니다.");
 
         verify(behaviorRecommendationServiceProvider).getIfAvailable();
+        verify(coreRoomService).getRoomDetailInternal(10L);
         verifyNoInteractions(
                 behaviorRecommendationService,
                 coreSensorService,
-                coreRoomService,
                 weatherService,
                 policyService,
                 chatClient
@@ -298,13 +308,13 @@ class WelcomeBriefingServiceTest {
         );
     }
 
-    private BehaviorRecommendation behaviorRecommendation() {
+    private BehaviorRecommendation behaviorRecommendation(long roomId) {
         return new BehaviorRecommendation(
                 "4iren.behavior.recommendation.v1",
                 new BehaviorRecommendation.Context(
                         PREDICTION_DATE,
                         DayOfWeek.TUESDAY,
-                        10L,
+                        roomId,
                         "회의실",
                         "Asia/Seoul"
                 ),
@@ -335,13 +345,13 @@ class WelcomeBriefingServiceTest {
         );
     }
 
-    private WelcomeBriefingMlRecommendation welcomeBriefingMlRecommendation() {
+    private WelcomeBriefingMlRecommendation welcomeBriefingMlRecommendation(long roomId) {
         return new WelcomeBriefingMlRecommendation(
                 "4iren.behavior.recommendation.v1",
                 new WelcomeBriefingMlRecommendation.Context(
                         PREDICTION_DATE,
                         DayOfWeek.TUESDAY,
-                        10L,
+                        roomId,
                         "회의실",
                         "Asia/Seoul"
                 ),

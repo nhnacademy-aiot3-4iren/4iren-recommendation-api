@@ -77,10 +77,34 @@ public class BehaviorRecommendationService {
         return recommendWithDiagnostics(predictionDate, roomId).recommendation();
     }
 
+    public BehaviorRecommendation recommend(LocalDate predictionDate, Long roomId, String locationMetadata) {
+        return recommendWithDiagnostics(predictionDate, roomId, locationMetadata).recommendation();
+    }
+
     public BehaviorRecommendationResult recommendWithDiagnostics(LocalDate predictionDate, Long roomId) {
         validateRequest(predictionDate, roomId);
+        String location = infrastructure.findRoomPreference(roomId)
+                .map(profile -> profile.location())
+                .orElseGet(() -> fallbackLocation(roomId));
+        return recommendValidated(predictionDate, roomId, location);
+    }
 
-        String location = infrastructure.getRoomPreference(roomId).location();
+    public BehaviorRecommendationResult recommendWithDiagnostics(LocalDate predictionDate,
+                                                                  Long roomId,
+                                                                  String locationMetadata) {
+        validateRequest(predictionDate, roomId);
+        String coldStartLocation = locationMetadata == null || locationMetadata.isBlank()
+                ? fallbackLocation(roomId)
+                : locationMetadata.trim();
+        String location = infrastructure.findRoomPreference(roomId)
+                .map(profile -> profile.location())
+                .orElse(coldStartLocation);
+        return recommendValidated(predictionDate, roomId, location);
+    }
+
+    private BehaviorRecommendationResult recommendValidated(LocalDate predictionDate,
+                                                             Long roomId,
+                                                             String location) {
         SpringServingContract contract = infrastructure.contract();
         SpringServingContract.BehaviorOrchestrationSpec behavior = contract.behaviorOrchestration();
         ZoneId zoneId = requiredZoneId(behavior.timezone());
@@ -168,6 +192,10 @@ public class BehaviorRecommendationService {
                 decisions,
                 eventSchedule
         );
+    }
+
+    private String fallbackLocation(Long roomId) {
+        return "room-" + roomId;
     }
 
     private void validateRequest(LocalDate predictionDate, Long roomId) {

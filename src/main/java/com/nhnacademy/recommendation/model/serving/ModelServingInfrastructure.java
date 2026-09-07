@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nhnacademy.recommendation.exception.ModelServingException;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Optional;
+
 @Slf4j
 public class ModelServingInfrastructure implements AutoCloseable {
 
@@ -64,9 +66,9 @@ public class ModelServingInfrastructure implements AutoCloseable {
                 loadedRuntimeArtifacts.roomPreferences().profiles().size());
     }
 
-    public RoomPreferenceProfile getRoomPreference(Long roomId) {
+    public Optional<RoomPreferenceProfile> findRoomPreference(Long roomId) {
         RuntimeArtifactStore artifacts = requireInitialized(runtimeArtifacts, "runtime artifacts");
-        return artifacts.roomPreferences().getRequired(roomId);
+        return artifacts.roomPreferences().find(roomId);
     }
 
     public ValidatedModelBundle bundle() {
