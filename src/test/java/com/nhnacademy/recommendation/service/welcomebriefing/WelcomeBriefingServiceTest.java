@@ -13,6 +13,7 @@ import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyDt
 import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingResponse;
 import com.nhnacademy.recommendation.exception.ModelServingException;
 import com.nhnacademy.recommendation.exception.NotPositiveValueException;
+import com.nhnacademy.recommendation.exception.RoomPreferenceNotFoundException;
 import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendation;
 import com.nhnacademy.recommendation.service.behavior.BehaviorRecommendationService;
 import com.nhnacademy.recommendation.service.core.CoreRoomService;
@@ -225,6 +226,52 @@ class WelcomeBriefingServiceTest {
     }
 
     @Test
+    @DisplayName("모델 Bundle에 없는 방은 빈 ML 추천으로 웰컴 브리핑을 생성한다")
+    void generateWelcomeBriefing_RoomPreferenceNotFound_UsesEmptyMlRecommendation() throws Exception {
+        RoomDetailResponse room = new RoomDetailResponse(20L, 100L, "본관", "202호", "실습실", 0L, 0L);
+        RoomRegionResponse region = new RoomRegionResponse(20L, "광주");
+        WelcomeBriefingResponse expected = new WelcomeBriefingResponse(
+                "현재 센서 상태 중심으로 확인이 필요합니다.",
+                "현재 온도, 습도, CO2를 확인했습니다.",
+                "외부 날씨를 함께 확인했습니다.",
+                List.of("기기 상태를 확인하세요."),
+                List.of("모델 추천 스케줄이 없습니다.")
+        );
+
+        given(behaviorRecommendationServiceProvider.getIfAvailable()).willReturn(behaviorRecommendationService);
+        given(coreRoomService.getRoomDetailInternal(20L)).willReturn(room);
+        given(coreRoomService.getRoomRegion(20L)).willReturn(region);
+        given(coreRoomService.getRoomDevices(20L)).willReturn(new RoomDevicesResponse(20L, "202호", List.of()));
+        given(behaviorRecommendationService.recommend(PREDICTION_DATE, 20L, "실습실"))
+                .willThrow(new RoomPreferenceNotFoundException(20L));
+        given(coreSensorService.getSensorMetricSummaryInternal(20L)).willReturn(sensorMetricSummary());
+        given(policyService.getPolicyOrDefault(3L, 20L))
+                .willReturn(new WelcomeBriefingPolicyDto(30, 60, 8.0, 70, true));
+        given(weatherService.getCurrentWeather("광주")).willReturn(currentWeather("광주"));
+        given(weatherService.getForecastWeather("광주")).willReturn(forecastWeather("광주"));
+        given(chatClient.prompt()).willReturn(requestSpec);
+        given(requestSpec.user(anyString())).willReturn(requestSpec);
+        given(requestSpec.call()).willReturn(callResponseSpec);
+        given(callResponseSpec.entity(WelcomeBriefingResponse.class)).willReturn(expected);
+
+        WelcomeBriefingResponse result = service.generateWelcomeBriefing(3L, 20L);
+
+        assertThat(result).isEqualTo(expected);
+        verify(behaviorRecommendationService).recommend(PREDICTION_DATE, 20L, "실습실");
+
+        ArgumentCaptor<String> contextCaptor = ArgumentCaptor.forClass(String.class);
+        verify(requestSpec).user(contextCaptor.capture());
+        WelcomeBriefingContext context = objectMapper.readValue(
+                contextCaptor.getValue(),
+                WelcomeBriefingContext.class
+        );
+        assertThat(context.room().roomId()).isEqualTo(20L);
+        assertThat(context.room().location()).isEqualTo("실습실");
+        assertThat(context.mlRecommendation().recommendationType()).isEqualTo("NO_MODEL_PROFILE");
+        assertThat(context.mlRecommendation().recommendedSchedule()).isEmpty();
+    }
+
+    @Test
     @DisplayName("Model serving이 비활성화되면 fake 추천 없이 명확하게 실패한다")
     void generateWelcomeBriefing_ModelServingDisabled() {
         RoomDetailResponse room = new RoomDetailResponse(10L, 100L, "본관", "101호", "실습실", 0L, 0L);
@@ -290,7 +337,7 @@ class WelcomeBriefingServiceTest {
                 coreSensorService,
                 policyService,
                 behaviorRecommendationServiceProvider,
-                Clock.fixed(Instant.parse("2026-08-11T01:00:00Z"), ASIA_SEOUL)
+                Clock.fixed(Instant.parse("2026-08-11T01:01:00Z"), ASIA_SEOUL)
         );
 
         assertThatThrownBy(() -> afterCutoffService.generateWelcomeBriefing(3L, 10L))
@@ -342,6 +389,48 @@ class WelcomeBriefingServiceTest {
                                 0.6543
                         )
                 )
+        );
+    }
+
+    private KmaCurrentWeatherResponseDto currentWeather(String regionName) {
+        return new KmaCurrentWeatherResponseDto(
+                regionName,
+                regionName,
+                58,
+                74,
+                "2026-08-10 08:00",
+                "28.0",
+                "없음",
+                "0mm",
+                "75",
+                "180",
+                "4.0",
+                "0",
+                "0"
+        );
+    }
+
+    private KmaForecastWeatherResponseDto forecastWeather(String regionName) {
+        return new KmaForecastWeatherResponseDto(
+                regionName,
+                regionName,
+                58,
+                74,
+                "2026-08-10 08:00",
+                List.of(new KmaForecastWeatherResponseDto.Forecast(
+                        "2026-08-10 09:00",
+                        "맑음",
+                        "없음",
+                        "0mm",
+                        "40",
+                        "29.0",
+                        "75",
+                        "180",
+                        "4.0",
+                        "0",
+                        "0",
+                        "0"
+                ))
         );
     }
 

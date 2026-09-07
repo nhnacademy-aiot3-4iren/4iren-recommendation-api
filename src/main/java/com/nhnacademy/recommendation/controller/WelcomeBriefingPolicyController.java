@@ -4,6 +4,7 @@ import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyDto;
 import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyEnabledRequest;
 import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyResponse;
+import com.nhnacademy.recommendation.controller.api.WelcomeBriefingPolicyApi;
 import com.nhnacademy.recommendation.entity.WelcomeBriefingPolicy;
 import com.nhnacademy.recommendation.service.welcomebriefing.WelcomeBriefingPolicyService;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/welcome-briefing/policies")
-public class WelcomeBriefingPolicyController {
+public class WelcomeBriefingPolicyController implements WelcomeBriefingPolicyApi {
 
     private final WelcomeBriefingPolicyService welcomeBriefingPolicyService;
 

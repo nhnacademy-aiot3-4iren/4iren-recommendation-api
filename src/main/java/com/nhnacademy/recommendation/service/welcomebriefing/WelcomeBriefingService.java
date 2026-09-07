@@ -10,6 +10,7 @@ import com.nhnacademy.recommendation.dto.room.RoomRegionResponse;
 import com.nhnacademy.recommendation.dto.sensor.SensorMetricSummaryResponse;
 import com.nhnacademy.recommendation.dto.welcomebriefing.*;
 import com.nhnacademy.recommendation.exception.ModelServingException;
+import com.nhnacademy.recommendation.exception.RoomPreferenceNotFoundException;
 import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendation;
 import com.nhnacademy.recommendation.service.behavior.BehaviorRecommendationService;
 import com.nhnacademy.recommendation.service.core.CoreRequestValidator;
@@ -35,7 +36,7 @@ import java.util.List;
 public class WelcomeBriefingService {
 
     private static final ZoneId BEHAVIOR_ZONE_ID = ZoneId.of("Asia/Seoul");
-    private static final LocalTime WELCOME_BRIEFING_CUTOFF_TIME = LocalTime.of(23, 59);
+    private static final LocalTime WELCOME_BRIEFING_CUTOFF_TIME = LocalTime.of(10, 0);
 
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
@@ -89,7 +90,7 @@ public class WelcomeBriefingService {
         //    - 현재 센서 데이터는 조회 시점의 즉시 주의사항 판단에 사용한다.
         WelcomeBriefingMlRecommendation mlRecommendation = fetchMlRecommendation(
                 roomId,
-                roomMetadata(room, roomId)
+                room
         );
         CurrentSensorSnapshot currentSensor = fetchCurrentSensorSnapshot(roomId);
 
@@ -174,8 +175,9 @@ public class WelcomeBriefingService {
         return OffsetDateTime.ofInstant(instant, BEHAVIOR_ZONE_ID);
     }
 
-    private WelcomeBriefingMlRecommendation fetchMlRecommendation(Long roomId, String locationMetadata) {
+    private WelcomeBriefingMlRecommendation fetchMlRecommendation(Long roomId, RoomDetailResponse room) {
         LocalDate predictionDate = LocalDate.now(clock);
+        String locationMetadata = roomMetadata(room, roomId);
         BehaviorRecommendationService behaviorRecommendationService = behaviorRecommendationServiceProvider
                 .getIfAvailable();
         if (behaviorRecommendationService == null) {
@@ -183,11 +185,17 @@ public class WelcomeBriefingService {
                     "Model serving이 비활성화되어 Behavior 추천을 생성할 수 없습니다."
             );
         }
-        BehaviorRecommendation recommendation = behaviorRecommendationService.recommend(
-                predictionDate,
-                roomId,
-                locationMetadata
-        );
+        BehaviorRecommendation recommendation;
+        try {
+            recommendation = behaviorRecommendationService.recommend(
+                    predictionDate,
+                    roomId,
+                    locationMetadata
+            );
+        } catch (RoomPreferenceNotFoundException exception) {
+            log.warn("[WelcomeBriefing] 모델 Bundle에 없는 roomId라 빈 ML 추천으로 브리핑을 생성합니다. roomId={}", roomId);
+            return emptyMlRecommendation(predictionDate, roomId, locationMetadata);
+        }
         return toWelcomeBriefingMlRecommendation(recommendation);
     }
 
@@ -199,6 +207,23 @@ public class WelcomeBriefingService {
             return room.roomName().trim();
         }
         return "room-" + requestedRoomId;
+    }
+
+    private WelcomeBriefingMlRecommendation emptyMlRecommendation(LocalDate predictionDate,
+                                                                  Long roomId,
+                                                                  String locationMetadata) {
+        return new WelcomeBriefingMlRecommendation(
+                "4iren.behavior.recommendation.v1",
+                new WelcomeBriefingMlRecommendation.Context(
+                        predictionDate,
+                        predictionDate.getDayOfWeek(),
+                        roomId,
+                        locationMetadata,
+                        BEHAVIOR_ZONE_ID.getId()
+                ),
+                "NO_MODEL_PROFILE",
+                List.of()
+        );
     }
 
     private WelcomeBriefingMlRecommendation toWelcomeBriefingMlRecommendation(
