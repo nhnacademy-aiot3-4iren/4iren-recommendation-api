@@ -2,6 +2,7 @@ package com.nhnacademy.recommendation.controller;
 
 import com.nhnacademy.recommendation.dto.dailysummary.DailySummaryRequest;
 import com.nhnacademy.recommendation.dto.dailysummary.DailySummaryResponse;
+import com.nhnacademy.recommendation.controller.api.DailySummaryApi;
 import com.nhnacademy.recommendation.service.core.CoreRequestValidator;
 import com.nhnacademy.recommendation.service.dailysummary.DailySummaryCacheService;
 import com.nhnacademy.recommendation.service.dailysummary.DailySummaryService;
@@ -15,7 +16,7 @@ import java.time.ZoneId;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/daily-summary")
-public class DailySummaryController {
+public class DailySummaryController implements DailySummaryApi {
 
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 

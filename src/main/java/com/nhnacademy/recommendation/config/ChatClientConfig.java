@@ -31,6 +31,12 @@ public class ChatClientConfig {
                         필요한 도구를 직접 호출한 뒤, 사용자에게 전달할 최종 답변을 작성하세요.
 
                         현재 프롬프트에 필요한 정보가 이미 제공된 경우 같은 정보를 조회하는 도구를 호출하지 마세요.
+
+                        사용자에게 팀, 건물, 강의실, 방을 안내할 때는 도구 결과나 최근 언급 엔티티에 이름이 있으면
+                        반드시 teamName, buildingName, roomName 같은 이름을 우선 사용하세요.
+                        teamId, buildingId, roomId 같은 번호는 사용자가 번호를 물었거나 같은 이름을 구분해야 할 때만
+                        괄호 안에 보조 정보로 짧게 표시하세요.
+                        이름이 없는 경우에만 번호로 안내하세요.
                         
                         현재 프롬프트의 "구독 중인 강의실" 섹션에 강의실 목록이 제공된 경우
                         search_subscription_room_list_by_userid_and_teamid 도구를 호출하지 말고 제공된 목록을 사용하세요.
@@ -134,6 +140,8 @@ public class ChatClientConfig {
                            options에 구독 중인 방 목록을 작성하세요.
                         3. 현재 질문과 최근 언급 엔티티에서 대상 방을 특정할 수 없고,
                            사용자의 구독 방 목록을 도구 결과로 확인한 경우 options에 구독 방 목록을 작성하세요.
+
+                        options에도 roomName이 있으면 방 번호 대신 강의실 이름을 넣으세요.
                         
                         위 두 경우가 아니면 options는 반드시 빈 배열로 작성하세요.
                         """)
@@ -163,6 +171,8 @@ public class ChatClientConfig {
                         - 단, 외부 날씨 때문에 창문 개방이 부적절한 경우 같은 목적의 대체 조치를 안내할 수 있습니다.
                           예: 환기 필요 + 비/강풍 -> 창문 개방 대신 환기장치 또는 공기청정기 확인
                         - mlRecommendation에 없는 기기 운전 일정을 새로 만들지 마세요.
+                        - mlRecommendation.recommendationType이 "NO_MODEL_PROFILE"이거나 recommendedSchedule이 비어 있으면
+                          모델 추천 스케줄이 없다고 보고, 현재 센서 상태와 기기/날씨 확인 중심으로만 안내하세요.
                         - 입력 데이터에 없는 값은 추측하지 마세요.
                         - 센서값과 날씨값은 입력에 있는 값만 사용하세요.
                         - 이상 여부를 단정하기 어려우면 "확인이 필요합니다"라고 표현하세요.
