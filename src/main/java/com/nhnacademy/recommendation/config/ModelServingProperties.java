@@ -14,6 +14,7 @@ public class ModelServingProperties {
     private boolean enabled = true;
     private final Minio minio = new Minio();
     private String cacheDirectory;
+    private long reloadIntervalMs = 60000L;
 
     public Path resolveCacheDirectory() {
         if (cacheDirectory == null || cacheDirectory.isBlank()) {
@@ -30,5 +31,6 @@ public class ModelServingProperties {
         private String secretKey;
         private String bucket = "4iren-models";
         private String prefix = "versions/v1";
+        private String currentPointerObject = "current.json";
     }
 }
