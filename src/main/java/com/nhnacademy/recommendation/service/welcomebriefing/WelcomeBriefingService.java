@@ -92,6 +92,12 @@ public class WelcomeBriefingService {
                 roomId,
                 room
         );
+        try {
+            String payload = objectMapper.writeValueAsString(mlRecommendation);
+            log.info("[WelcomeBriefing][ML Recommendation] roomId={} payload={}", roomId, payload);
+        } catch (JsonProcessingException e) {
+            log.warn("[WelcomeBriefing][ML Recommendation] JSON serialization failed. roomId={}", roomId, e);
+        }
         CurrentSensorSnapshot currentSensor = fetchCurrentSensorSnapshot(roomId);
 
         // 3. 스케줄러/내부 작업 전용 Core API로 지역명, 기기 정보를 조회한다.
