@@ -131,7 +131,7 @@ jobs:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
-            [CI/CD 배포 결과 알림]
+            [${{ env.IMAGE_NAME }} 배포 결과 알림]
             -️ 빌드(Build): ${{ needs.build-and-push.result }}
             - 배포(Deploy): ${{ needs.deploy.result }}
 
