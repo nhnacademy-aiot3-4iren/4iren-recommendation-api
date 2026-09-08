@@ -81,39 +81,36 @@ public class WelcomeBriefingService {
         CoreRequestValidator.requirePositive(teamId, "teamId");
         CoreRequestValidator.requirePositive(roomId, "roomId");
         validateRequestTime();
-        BehaviorRecommendationService behaviorRecommendationService = behaviorRecommendationServiceProvider
-                .getIfAvailable();
-        if (behaviorRecommendationService == null) {
-            throw new ModelServingException(
-                    "Model serving이 비활성화되어 Behavior 추천을 생성할 수 없습니다."
-            );
-        }
 
-        // 1. 스케줄러/내부 작업 전용 Core API로 강의실, 지역명, 기기 정보를 조회한다.
-        //    - 이 흐름은 사용자 요청이 아니므로 userId, userRole을 받지 않는다.
-        //    - teamId는 사용자 권한 검증이 아니라 팀별 브리핑/날씨 정책 조회 기준으로 사용한다.
-        //    - 날씨 조회에는 건물 상세가 아니라 roomId 기준 regionName 조회 결과만 사용한다.
+        // 1. Core room catalog에서 요청 roomId의 실제 방 metadata를 조회한다.
         RoomDetailResponse room = coreRoomService.getRoomDetailInternal(roomId);
-        RoomRegionResponse roomRegion = coreRoomService.getRoomRegion(roomId);
-        RoomDevicesResponse devices = coreRoomService.getRoomDevices(roomId);
 
         // 2. ML 추천 스케줄과 현재 센서 데이터를 조회한다.
         //    - ML 추천 스케줄은 이전 센서 데이터와 과거 기기 작동 이력을 반영한 오늘 관리 방안으로 사용한다.
         //    - 현재 센서 데이터는 조회 시점의 즉시 주의사항 판단에 사용한다.
-        //    - 모델 Bundle에 없는 신규/다른 방은 빈 ML 추천으로 브리핑을 계속 생성한다.
-        WelcomeBriefingMlRecommendation mlRecommendation = fetchMlRecommendation(behaviorRecommendationService, roomId, room);
+        WelcomeBriefingMlRecommendation mlRecommendation = fetchMlRecommendation(
+                roomId,
+                room
+        );
         CurrentSensorSnapshot currentSensor = fetchCurrentSensorSnapshot(roomId);
 
-        // 3. 팀별 외부 날씨 브리핑 정책을 조회한다.
+        // 3. 스케줄러/내부 작업 전용 Core API로 지역명, 기기 정보를 조회한다.
+        //    - 이 흐름은 사용자 요청이 아니므로 userId, userRole을 받지 않는다.
+        //    - teamId는 사용자 권한 검증이 아니라 팀별 브리핑/날씨 정책 조회 기준으로 사용한다.
+        //    - 날씨 조회에는 건물 상세가 아니라 roomId 기준 regionName 조회 결과만 사용한다.
+        RoomRegionResponse roomRegion = coreRoomService.getRoomRegion(roomId);
+        RoomDevicesResponse devices = coreRoomService.getRoomDevices(roomId);
+
+        // 4. 팀별 외부 날씨 브리핑 정책을 조회한다.
         WelcomeBriefingPolicyDto briefingPolicy = welcomeBriefingPolicyService.getPolicyOrDefault(teamId, roomId);
 
-        // 4. 강의실 지역명 기준으로 외부 날씨와 오늘 예보를 조회한다.
+        // 5. 강의실 지역명 기준으로 외부 날씨와 오늘 예보를 조회한다.
         //    - 외부 날씨는 현재 센서 상태와 ML 추천 스케줄을 보정하거나 주의점을 보완하는 데만 사용한다.
         //    - 예: 환기 필요 + 비/강풍 -> 창문 개방 대신 환기장치 또는 공기청정기 확인.
         KmaCurrentWeatherResponseDto currentWeather = weatherService.getCurrentWeather(roomRegion.regionName());
         KmaForecastWeatherResponseDto forecastWeather = weatherService.getForecastWeather(roomRegion.regionName());
 
-        // 5. LLM 전달용 컨텍스트를 구성한다.
+        // 6. LLM 전달용 컨텍스트를 구성한다.
         //    - 현재 센서 데이터와 ML 추천 스케줄은 원본 의미를 분리해서 전달한다.
         //    - 날씨/예보/기기 목록은 조치 실행 가능성과 주의점 보강용 맥락이다.
         WelcomeBriefingContext context = new WelcomeBriefingContext(
@@ -125,7 +122,7 @@ public class WelcomeBriefingService {
                 mlRecommendation
         );
 
-        // 6. LLM은 주어진 컨텍스트를 브리핑 문장으로 정리한다.
+        // 7. LLM은 주어진 컨텍스트를 브리핑 문장으로 정리한다.
         //    - 현재 상태는 currentSensor를 우선하고, 하루 관리 방안은 mlRecommendation을 우선한다.
         //    - 입력에 없는 수치나 상태는 생성하지 않도록 시스템 프롬프트에서 제한한다.
         return chatClient.prompt()
@@ -178,43 +175,55 @@ public class WelcomeBriefingService {
         return OffsetDateTime.ofInstant(instant, BEHAVIOR_ZONE_ID);
     }
 
-    private WelcomeBriefingMlRecommendation fetchMlRecommendation(BehaviorRecommendationService behaviorRecommendationService,
-                                                                  Long roomId,
-                                                                  RoomDetailResponse room) {
+    private WelcomeBriefingMlRecommendation fetchMlRecommendation(Long roomId, RoomDetailResponse room) {
         LocalDate predictionDate = LocalDate.now(clock);
+        String locationMetadata = roomMetadata(room, roomId);
+        BehaviorRecommendationService behaviorRecommendationService = behaviorRecommendationServiceProvider
+                .getIfAvailable();
+        if (behaviorRecommendationService == null) {
+            throw new ModelServingException(
+                    "Model serving이 비활성화되어 Behavior 추천을 생성할 수 없습니다."
+            );
+        }
         BehaviorRecommendation recommendation;
         try {
-            recommendation = behaviorRecommendationService.recommend(predictionDate, roomId);
+            recommendation = behaviorRecommendationService.recommend(
+                    predictionDate,
+                    roomId,
+                    locationMetadata
+            );
         } catch (RoomPreferenceNotFoundException exception) {
             log.warn("[WelcomeBriefing] 모델 Bundle에 없는 roomId라 빈 ML 추천으로 브리핑을 생성합니다. roomId={}", roomId);
-            return emptyMlRecommendation(predictionDate, room);
+            return emptyMlRecommendation(predictionDate, roomId, locationMetadata);
         }
         return toWelcomeBriefingMlRecommendation(recommendation);
     }
 
-    private WelcomeBriefingMlRecommendation emptyMlRecommendation(LocalDate predictionDate, RoomDetailResponse room) {
-        String location = firstNonBlank(room.description(), room.roomName(), "UNKNOWN");
+    private String roomMetadata(RoomDetailResponse room, Long requestedRoomId) {
+        if (room.description() != null && !room.description().isBlank()) {
+            return room.description().trim();
+        }
+        if (room.roomName() != null && !room.roomName().isBlank()) {
+            return room.roomName().trim();
+        }
+        return "room-" + requestedRoomId;
+    }
+
+    private WelcomeBriefingMlRecommendation emptyMlRecommendation(LocalDate predictionDate,
+                                                                  Long roomId,
+                                                                  String locationMetadata) {
         return new WelcomeBriefingMlRecommendation(
                 "4iren.behavior.recommendation.v1",
                 new WelcomeBriefingMlRecommendation.Context(
                         predictionDate,
                         predictionDate.getDayOfWeek(),
-                        room.roomId(),
-                        location,
+                        roomId,
+                        locationMetadata,
                         BEHAVIOR_ZONE_ID.getId()
                 ),
                 "NO_MODEL_PROFILE",
                 List.of()
         );
-    }
-
-    private String firstNonBlank(String... values) {
-        for (String value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return "";
     }
 
     private WelcomeBriefingMlRecommendation toWelcomeBriefingMlRecommendation(

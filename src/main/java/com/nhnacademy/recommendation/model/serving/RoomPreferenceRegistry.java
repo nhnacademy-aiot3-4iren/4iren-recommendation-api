@@ -2,10 +2,9 @@ package com.nhnacademy.recommendation.model.serving;
 
 import com.nhnacademy.recommendation.exception.BundleValidationException;
 import com.nhnacademy.recommendation.exception.RoomPreferenceNotFoundException;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
+import java.util.Optional;
 
 public final class RoomPreferenceRegistry {
 
@@ -15,7 +14,7 @@ public final class RoomPreferenceRegistry {
         this.profiles = Map.copyOf(profiles);
     }
 
-    public static RoomPreferenceRegistry from(RuntimeCsvTable table, Set<String> validBehaviorLocations) {
+    public static RoomPreferenceRegistry from(RuntimeCsvTable table) {
         int roomIdIndex = table.columnIndex("room_id");
         int locationIndex = table.columnIndex("location");
         Map<Long, RoomPreferenceProfile> profiles = new LinkedHashMap<>();
@@ -30,13 +29,6 @@ public final class RoomPreferenceRegistry {
                         "room_preference_profile.csv location이 비어 있습니다: line=" + csvLine
                 );
             }
-            if (!validBehaviorLocations.contains(location)) {
-                throw new BundleValidationException(
-                        "room_preference_profile.csv location이 behavior.validLocations에 없습니다: line="
-                                + csvLine + " location=" + location
-                );
-            }
-
             Map<String, String> values = new LinkedHashMap<>();
             for (int column = 0; column < table.headers().size(); column++) {
                 values.put(table.headers().get(column), row.get(column));
@@ -50,21 +42,15 @@ public final class RoomPreferenceRegistry {
             }
         }
 
-        if (profiles.isEmpty()) {
-            throw new BundleValidationException("room_preference_profile.csv에 데이터가 없습니다.");
-        }
         return new RoomPreferenceRegistry(profiles);
     }
 
+    public Optional<RoomPreferenceProfile> find(Long roomId) {
+        return roomId == null ? Optional.empty() : Optional.ofNullable(profiles.get(roomId));
+    }
+
     public RoomPreferenceProfile getRequired(Long roomId) {
-        if (roomId == null) {
-            throw new RoomPreferenceNotFoundException(null);
-        }
-        RoomPreferenceProfile profile = profiles.get(roomId);
-        if (profile == null) {
-            throw new RoomPreferenceNotFoundException(roomId);
-        }
-        return profile;
+        return find(roomId).orElseThrow(() -> new RoomPreferenceNotFoundException(roomId));
     }
 
     public Map<Long, RoomPreferenceProfile> profiles() {
@@ -78,7 +64,14 @@ public final class RoomPreferenceRegistry {
             );
         }
         try {
-            return Long.valueOf(value);
+            Long roomId = Long.valueOf(value);
+            if (roomId <= 0) {
+                throw new BundleValidationException(
+                        "room_preference_profile.csv room_id가 양수가 아닙니다: line="
+                                + csvLine + " room_id=" + value
+                );
+            }
+            return roomId;
         } catch (NumberFormatException e) {
             throw new BundleValidationException(
                     "room_preference_profile.csv room_id가 Long 형식이 아닙니다: line="

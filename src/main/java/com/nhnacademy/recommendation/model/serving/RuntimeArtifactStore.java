@@ -60,8 +60,7 @@ public final class RuntimeArtifactStore {
         }
 
         RoomPreferenceRegistry registry = RoomPreferenceRegistry.from(
-                tables.get("roomPreferenceProfile"),
-                contract.validBehaviorLocations()
+                tables.get("roomPreferenceProfile")
         );
         return new RuntimeArtifactStore(registry, tables);
     }
