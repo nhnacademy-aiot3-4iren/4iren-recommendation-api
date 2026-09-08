@@ -16,6 +16,7 @@ import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendationResult
 import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendationResult.VentilationEvent;
 import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendationResult.VentilationSchedule;
 import com.nhnacademy.recommendation.model.serving.ModelServingInfrastructure;
+import com.nhnacademy.recommendation.model.serving.ModelServingInfrastructure.RuntimeState;
 import com.nhnacademy.recommendation.model.serving.RuntimeCsvTable;
 import com.nhnacademy.recommendation.model.serving.SpringServingContract;
 import lombok.extern.slf4j.Slf4j;
@@ -65,7 +66,13 @@ public class BehaviorRecommendationService {
 
     private final ModelServingInfrastructure infrastructure;
     private final OrtEnvironment environment;
-    private volatile RuntimeData runtimeData;
+    private volatile CachedRuntimeData runtimeData;
+
+    private record CachedRuntimeData(
+            String modelVersion,
+            RuntimeData data
+    ) {
+    }
 
     public BehaviorRecommendationService(ModelServingInfrastructure infrastructure,
                                          OrtEnvironment environment) {
@@ -83,32 +90,37 @@ public class BehaviorRecommendationService {
 
     public BehaviorRecommendationResult recommendWithDiagnostics(LocalDate predictionDate, Long roomId) {
         validateRequest(predictionDate, roomId);
-        String location = infrastructure.findRoomPreference(roomId)
-                .map(profile -> profile.location())
-                .orElseGet(() -> fallbackLocation(roomId));
-        return recommendValidated(predictionDate, roomId, location);
+        return infrastructure.withRuntime(state -> {
+            String location = state.runtimeArtifacts().roomPreferences().find(roomId)
+                    .map(profile -> profile.location())
+                    .orElseGet(() -> fallbackLocation(roomId));
+            return recommendValidated(predictionDate, roomId, location, state);
+        });
     }
 
     public BehaviorRecommendationResult recommendWithDiagnostics(LocalDate predictionDate,
                                                                   Long roomId,
                                                                   String locationMetadata) {
         validateRequest(predictionDate, roomId);
-        String coldStartLocation = locationMetadata == null || locationMetadata.isBlank()
-                ? fallbackLocation(roomId)
-                : locationMetadata.trim();
-        String location = infrastructure.findRoomPreference(roomId)
-                .map(profile -> profile.location())
-                .orElse(coldStartLocation);
-        return recommendValidated(predictionDate, roomId, location);
+        return infrastructure.withRuntime(state -> {
+            String coldStartLocation = locationMetadata == null || locationMetadata.isBlank()
+                    ? fallbackLocation(roomId)
+                    : locationMetadata.trim();
+            String location = state.runtimeArtifacts().roomPreferences().find(roomId)
+                    .map(profile -> profile.location())
+                    .orElse(coldStartLocation);
+            return recommendValidated(predictionDate, roomId, location, state);
+        });
     }
 
     private BehaviorRecommendationResult recommendValidated(LocalDate predictionDate,
                                                              Long roomId,
-                                                             String location) {
-        SpringServingContract contract = infrastructure.contract();
+                                                             String location,
+                                                             RuntimeState state) {
+        SpringServingContract contract = state.contract();
         SpringServingContract.BehaviorOrchestrationSpec behavior = contract.behaviorOrchestration();
         ZoneId zoneId = requiredZoneId(behavior.timezone());
-        RuntimeData data = runtimeData(zoneId);
+        RuntimeData data = runtimeData(state, zoneId);
 
         RegimeInference regime = inferTemperatureRegime(
                 predictionDate,
@@ -116,7 +128,9 @@ public class BehaviorRecommendationService {
                 behavior.dayOfYearCycle()
         );
         Map<String, Object> dailyFeature = dailyFeature(predictionDate, location, regime.regime(), behavior);
-        Map<String, DeviceUsageDecision> decisions = predictDailyUsage(dailyFeature, regime.regime(), contract);
+        Map<String, DeviceUsageDecision> decisions = predictDailyUsage(
+                dailyFeature, regime.regime(), contract, state
+        );
 
         List<Map<String, Object>> eventFeatures = eventFeatures(
                 predictionDate,
@@ -125,7 +139,9 @@ public class BehaviorRecommendationService {
                 contract.behaviorBinMinutes(),
                 behavior
         );
-        Map<String, double[]> eventProbabilities = predictEvents(eventFeatures, contract);
+        Map<String, double[]> eventProbabilities = predictEvents(
+                eventFeatures, contract, state
+        );
 
         ComparableHistory comparable = comparableHistory(
                 predictionDate,
@@ -210,19 +226,30 @@ public class BehaviorRecommendationService {
         }
     }
 
-    private RuntimeData runtimeData(ZoneId zoneId) {
-        RuntimeData loaded = runtimeData;
-        if (loaded != null) {
-            return loaded;
+    private RuntimeData runtimeData(RuntimeState state, ZoneId zoneId) {
+        String modelVersion = state.bundle().manifest().modelVersion();
+        CachedRuntimeData loaded = runtimeData;
+        if (loaded != null && loaded.modelVersion().equals(modelVersion)) {
+            return loaded.data();
         }
+
         synchronized (this) {
-            if (runtimeData == null) {
-                runtimeData = new RuntimeData(
-                        loadRegimeHistory(infrastructure.runtimeArtifacts().csv("behaviorTemperatureRegimeHistory")),
-                        loadEventHistory(infrastructure.runtimeArtifacts().csv("behaviorEventHistory"), zoneId)
-                );
+            loaded = runtimeData;
+            if (loaded != null && loaded.modelVersion().equals(modelVersion)) {
+                return loaded.data();
             }
-            return runtimeData;
+
+            RuntimeData refreshed = new RuntimeData(
+                    loadRegimeHistory(
+                            state.runtimeArtifacts().csv("behaviorTemperatureRegimeHistory")
+                    ),
+                    loadEventHistory(
+                            state.runtimeArtifacts().csv("behaviorEventHistory"),
+                            zoneId
+                    )
+            );
+            runtimeData = new CachedRuntimeData(modelVersion, refreshed);
+            return refreshed;
         }
     }
 
@@ -336,7 +363,8 @@ public class BehaviorRecommendationService {
 
     private Map<String, DeviceUsageDecision> predictDailyUsage(Map<String, Object> feature,
                                                                String regime,
-                                                               SpringServingContract contract) {
+                                                               SpringServingContract contract,
+                                                               RuntimeState state) {
         Map<String, DeviceUsageDecision> result = new LinkedHashMap<>();
         SpringServingContract.BehaviorOrchestrationSpec behavior = contract.behaviorOrchestration();
         for (String deviceType : DEVICE_TYPES) {
@@ -345,7 +373,7 @@ public class BehaviorRecommendationService {
                     DAILY_USAGE_PREFIX + deviceType,
                     true
             );
-            double probability = predictPositiveProbability(spec, List.of(feature))[0];
+            double probability = predictPositiveProbability(spec, List.of(feature), state)[0];
             double threshold = spec.threshold();
             Set<String> allowedRegimes = behavior.regimeGating().get(deviceType);
             if (allowedRegimes == null) {
@@ -387,7 +415,8 @@ public class BehaviorRecommendationService {
     }
 
     private Map<String, double[]> predictEvents(List<Map<String, Object>> features,
-                                                SpringServingContract contract) {
+                                                SpringServingContract contract,
+                                                RuntimeState state) {
         Map<String, double[]> result = new LinkedHashMap<>();
         for (String eventType : EVENT_TYPES) {
             SpringServingContract.OnnxModelSpec spec = requiredProbabilityModel(
@@ -395,7 +424,7 @@ public class BehaviorRecommendationService {
                     EVENT_PREFIX + eventType,
                     false
             );
-            result.put(eventType, predictPositiveProbability(spec, features));
+            result.put(eventType, predictPositiveProbability(spec, features, state));
         }
         return Map.copyOf(result);
     }
@@ -420,13 +449,14 @@ public class BehaviorRecommendationService {
     }
 
     private double[] predictPositiveProbability(SpringServingContract.OnnxModelSpec spec,
-                                                List<Map<String, Object>> rows) {
+                                                List<Map<String, Object>> rows,
+                                                RuntimeState state) {
         Map<String, OnnxTensor> inputs = new LinkedHashMap<>();
         try {
             for (SpringServingContract.OnnxInputSpec input : spec.inputs()) {
                 inputs.put(input.name(), createTensor(input, rows));
             }
-            OrtSession session = infrastructure.sessions().getRequired(spec.key());
+            OrtSession session = state.sessions().getRequired(spec.key());
             try (OrtSession.Result inference = session.run(inputs)) {
                 Object value = inference.get(spec.outputName())
                         .orElseThrow(() -> new BundleValidationException(
