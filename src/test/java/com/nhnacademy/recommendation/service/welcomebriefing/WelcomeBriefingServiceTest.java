@@ -14,6 +14,7 @@ import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingResponse
 import com.nhnacademy.recommendation.exception.ModelServingException;
 import com.nhnacademy.recommendation.exception.NotPositiveValueException;
 import com.nhnacademy.recommendation.exception.RoomPreferenceNotFoundException;
+import com.nhnacademy.recommendation.model.behavior.BehaviorConfidenceLabel;
 import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendation;
 import com.nhnacademy.recommendation.service.behavior.BehaviorRecommendationService;
 import com.nhnacademy.recommendation.service.core.CoreRoomService;
@@ -195,6 +196,13 @@ class WelcomeBriefingServiceTest {
 
         assertThat(context.room().location()).isEqualTo("회의실");
         assertThat(context.mlRecommendation()).isEqualTo(welcomeBriefingMlRecommendation(roomId));
+        assertThat(context.mlRecommendation().recommendedSchedule())
+                .extracting(WelcomeBriefingMlRecommendation.RecommendedSchedule::confidenceLabel)
+                .containsExactly(
+                        BehaviorConfidenceLabel.HIGH,
+                        BehaviorConfidenceLabel.MEDIUM,
+                        BehaviorConfidenceLabel.MEDIUM
+                );
         assertThat(context.currentSensor().temperatureC()).isEqualTo(25.0);
         assertThat(context.currentSensor().humidityPercent()).isEqualTo(42.0);
         assertThat(context.currentSensor().co2Ppm()).isEqualTo(980.0);

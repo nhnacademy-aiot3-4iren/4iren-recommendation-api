@@ -142,6 +142,9 @@ public class BehaviorRecommendationService {
         Map<String, double[]> eventProbabilities = predictEvents(
                 eventFeatures, contract, state
         );
+        Map<String, double[]> eventScores = data.timingPriors().isEmpty()
+                ? eventProbabilities
+                : applyTimingPriors(eventProbabilities, data.timingPriors());
 
         ComparableHistory comparable = comparableHistory(
                 predictionDate,
@@ -155,7 +158,7 @@ public class BehaviorRecommendationService {
                 AIR_CONDITIONER,
                 decisions.get(AIR_CONDITIONER),
                 comparable,
-                eventProbabilities,
+                eventScores,
                 contract.behaviorBinMinutes(),
                 behavior
         );
@@ -163,13 +166,13 @@ public class BehaviorRecommendationService {
                 HEATER,
                 decisions.get(HEATER),
                 comparable,
-                eventProbabilities,
+                eventScores,
                 contract.behaviorBinMinutes(),
                 behavior
         );
         VentilationBuild ventilation = buildVentilation(
                 comparable,
-                eventProbabilities.get("VENTILATION_EVENT"),
+                eventScores.get("VENTILATION_EVENT"),
                 contract.behaviorBinMinutes(),
                 behavior
         );
@@ -246,7 +249,10 @@ public class BehaviorRecommendationService {
                     loadEventHistory(
                             state.runtimeArtifacts().csv("behaviorEventHistory"),
                             zoneId
-                    )
+                    ),
+                    state.runtimeArtifacts().optionalCsv("behaviorActionTimePrior")
+                            .map(table -> loadTimingPriors(table, state.contract().behaviorBinMinutes()))
+                            .orElse(Map.of())
             );
             runtimeData = new CachedRuntimeData(modelVersion, refreshed);
             return refreshed;
@@ -304,6 +310,109 @@ public class BehaviorRecommendationService {
             }
         }
         return List.copyOf(result);
+    }
+
+    private Map<String, TimingPrior> loadTimingPriors(RuntimeCsvTable table, int binMinutes) {
+        int eventIndex = table.columnIndex("event_type");
+        int binIndex = table.columnIndex("time_bin");
+        int minuteIndex = table.columnIndex("minute_of_day");
+        int priorIndex = table.columnIndex("timing_prior");
+        int countIndex = table.columnIndex("sample_count");
+        int reliabilityIndex = table.columnIndex("reliability");
+        int weightIndex = table.columnIndex("effective_weight");
+        int sigmaIndex = table.columnIndex("sigma_minutes");
+        int expectedBins = 1440 / binMinutes;
+        Map<String, double[]> values = new LinkedHashMap<>();
+        Map<String, Double> weights = new LinkedHashMap<>();
+        Map<String, Integer> sampleCounts = new LinkedHashMap<>();
+        for (int rowIndex = 0; rowIndex < table.rows().size(); rowIndex++) {
+            List<String> row = table.rows().get(rowIndex);
+            try {
+                String eventType = row.get(eventIndex);
+                if (!EVENT_TYPES.contains(eventType)) {
+                    throw new IllegalArgumentException("unsupported event_type=" + eventType);
+                }
+                int bin = Integer.parseInt(row.get(binIndex));
+                int minute = Integer.parseInt(row.get(minuteIndex));
+                double prior = Double.parseDouble(row.get(priorIndex));
+                int sampleCount = Integer.parseInt(row.get(countIndex));
+                double reliability = Double.parseDouble(row.get(reliabilityIndex));
+                double weight = Double.parseDouble(row.get(weightIndex));
+                double sigma = Double.parseDouble(row.get(sigmaIndex));
+                if (bin < 0 || bin >= expectedBins || minute != bin * binMinutes
+                        || !Double.isFinite(prior) || prior < 0.0 || prior > 1.0
+                        || sampleCount <= 0 || !Double.isFinite(reliability)
+                        || reliability <= 0.0 || reliability >= 1.0
+                        || !Double.isFinite(weight) || weight < 0.0 || weight > 1.0
+                        || !Double.isFinite(sigma) || sigma <= 0.0) {
+                    throw new IllegalArgumentException("invalid timing prior value");
+                }
+                double[] eventValues = values.computeIfAbsent(eventType, ignored -> {
+                    double[] empty = new double[expectedBins];
+                    java.util.Arrays.fill(empty, Double.NaN);
+                    return empty;
+                });
+                if (!Double.isNaN(eventValues[bin])) {
+                    throw new IllegalArgumentException("duplicate event bin");
+                }
+                eventValues[bin] = prior;
+                Double previousWeight = weights.putIfAbsent(eventType, weight);
+                Integer previousCount = sampleCounts.putIfAbsent(eventType, sampleCount);
+                if ((previousWeight != null && Double.compare(previousWeight, weight) != 0)
+                        || (previousCount != null && previousCount != sampleCount)) {
+                    throw new IllegalArgumentException("inconsistent event metadata");
+                }
+            } catch (RuntimeException exception) {
+                throw malformedHistory("behavior_action_time_prior.csv", rowIndex, exception);
+            }
+        }
+        Map<String, TimingPrior> result = new LinkedHashMap<>();
+        values.forEach((eventType, eventValues) -> {
+            if (java.util.Arrays.stream(eventValues).anyMatch(Double::isNaN)
+                    || java.util.Arrays.stream(eventValues).max().orElse(0.0) < 1.0 - 1e-9) {
+                throw new BundleValidationException(
+                        "Behavior timing prior bin이 완전하지 않습니다: " + eventType
+                );
+            }
+            result.put(eventType, new TimingPrior(eventValues, weights.get(eventType)));
+        });
+        return Map.copyOf(result);
+    }
+
+    private Map<String, double[]> applyTimingPriors(Map<String, double[]> baseScores,
+                                                     Map<String, TimingPrior> timingPriors) {
+        Map<String, double[]> result = new LinkedHashMap<>(baseScores);
+        timingPriors.forEach((eventType, timingPrior) -> {
+            double[] base = baseScores.get(eventType);
+            if (base == null) {
+                throw new BundleValidationException("timing prior 대상 Behavior event가 없습니다: " + eventType);
+            }
+            result.put(eventType, calibrateTimingScores(
+                    base, timingPrior.values(), timingPrior.effectiveWeight()
+            ));
+        });
+        return Map.copyOf(result);
+    }
+
+    static double[] calibrateTimingScores(double[] baseScores,
+                                          double[] timingPrior,
+                                          double effectiveWeight) {
+        if (baseScores.length != timingPrior.length) {
+            throw new IllegalArgumentException("base score와 timing prior 길이가 다릅니다.");
+        }
+        if (!Double.isFinite(effectiveWeight) || effectiveWeight < 0.0 || effectiveWeight > 1.0) {
+            throw new IllegalArgumentException("effectiveWeight는 0~1 범위여야 합니다.");
+        }
+        double[] result = new double[baseScores.length];
+        for (int index = 0; index < baseScores.length; index++) {
+            if (!Double.isFinite(baseScores[index]) || !Double.isFinite(timingPrior[index])
+                    || timingPrior[index] < 0.0 || timingPrior[index] > 1.0) {
+                throw new IllegalArgumentException("base score 또는 timing prior가 유효하지 않습니다.");
+            }
+            result[index] = (1.0 - effectiveWeight) * baseScores[index]
+                    + effectiveWeight * timingPrior[index];
+        }
+        return result;
     }
 
     private BundleValidationException malformedHistory(String filename, int zeroBasedRow, Exception cause) {
@@ -807,8 +916,12 @@ public class BehaviorRecommendationService {
 
     private record RuntimeData(
             List<RegimeHistoryRow> regimeHistory,
-            List<EventHistoryRow> eventHistory
+            List<EventHistoryRow> eventHistory,
+            Map<String, TimingPrior> timingPriors
     ) {
+    }
+
+    private record TimingPrior(double[] values, double effectiveWeight) {
     }
 
     private record RegimeHistoryRow(LocalDate localDate, String temperatureRegime, int dayOfYear) {
