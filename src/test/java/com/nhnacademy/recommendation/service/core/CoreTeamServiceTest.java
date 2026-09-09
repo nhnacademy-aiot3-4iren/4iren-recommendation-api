@@ -36,7 +36,7 @@ class CoreTeamServiceTest {
     @Test
     @DisplayName("사용자의 팀 목록 조회 성공")
     void getTeamsByUser() {
-        List<TeamResponse> teams = List.of(new TeamResponse(3L, "3번팀", "3번팀 설명", TeamRole.MEMBER));
+        List<TeamResponse> teams = List.of(new TeamResponse(3L, "3번팀", "3번팀 설명", TeamRole.NORMAL));
         given(coreClient.getTeamsByUser(1L, UserRole.NORMAL))
                 .willReturn(teams);
 
