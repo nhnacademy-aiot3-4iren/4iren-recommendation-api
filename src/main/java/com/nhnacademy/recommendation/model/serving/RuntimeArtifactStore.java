@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 public final class RuntimeArtifactStore {
@@ -58,6 +59,7 @@ public final class RuntimeArtifactStore {
             log.info("[ModelServing] runtime CSV를 메모리에 로드했습니다. key={}, filename={}, rows={}",
                     key, filename, table.rows().size());
         }
+        loadOptionalRuntimeCsv(bundle, tables, "behaviorActionTimePrior");
 
         RoomPreferenceRegistry registry = RoomPreferenceRegistry.from(
                 tables.get("roomPreferenceProfile")
@@ -77,6 +79,10 @@ public final class RuntimeArtifactStore {
         return table;
     }
 
+    public Optional<RuntimeCsvTable> optionalCsv(String key) {
+        return Optional.ofNullable(csvTables.get(key));
+    }
+
     public Map<String, RuntimeCsvTable> csvTables() {
         return csvTables;
     }
@@ -87,5 +93,22 @@ public final class RuntimeArtifactStore {
             throw new BundleValidationException("manifest runtimeData 필수 값이 없습니다: " + key);
         }
         return filename;
+    }
+
+    private static void loadOptionalRuntimeCsv(ValidatedModelBundle bundle,
+                                               Map<String, RuntimeCsvTable> tables,
+                                               String key) {
+        String filename = bundle.manifest().runtimeData().get(key);
+        if (filename == null || filename.isBlank()) {
+            return;
+        }
+        Path path = ModelBundleValidator.resolveInside(bundle.directory(), filename);
+        if (!Files.isRegularFile(path)) {
+            throw new BundleValidationException("optional runtime CSV가 없습니다: " + filename);
+        }
+        RuntimeCsvTable table = RuntimeCsvTable.load(path);
+        tables.put(key, table);
+        log.info("[ModelServing] optional runtime CSV를 메모리에 로드했습니다. key={}, filename={}, rows={}",
+                key, filename, table.rows().size());
     }
 }

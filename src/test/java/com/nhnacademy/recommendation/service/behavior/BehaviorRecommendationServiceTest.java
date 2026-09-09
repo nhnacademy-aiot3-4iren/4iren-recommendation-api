@@ -53,4 +53,43 @@ class BehaviorRecommendationServiceTest {
         assertThat(BehaviorRecommendationService.chooseStopAfterStart(invalidProbabilities, 0, null, 1))
                 .isNull();
     }
+
+    @Test
+    void combinesBaseScoresWithActualActionTimingEvidence() {
+        double[] base = {0.60, 0.10, 0.05};
+        double[] prior = {0.0, 1.0, 0.2};
+
+        double[] calibrated = BehaviorRecommendationService.calibrateTimingScores(base, prior, 0.4);
+
+        assertThat(calibrated).containsExactly(0.36, 0.46, 0.11000000000000001);
+        assertThat(calibrated[1]).isGreaterThan(base[1]);
+    }
+
+    @Test
+    void zeroTimingWeightPreservesBaseScoresExactly() {
+        double[] base = {0.123456789, 0.987654321};
+        double[] prior = {1.0, 0.0};
+
+        assertThat(BehaviorRecommendationService.calibrateTimingScores(base, prior, 0.0))
+                .containsExactly(base);
+    }
+
+    @Test
+    void actualActionTimingErrorDoesNotWorsenAfterCalibration() {
+        double[] baseStop = new double[48];
+        double[] stopPrior = new double[48];
+        baseStop[46] = 0.6111; // 23:00 baseline
+        baseStop[39] = 0.00195; // actual history around 19:19
+        stopPrior[39] = 1.0;
+
+        double[] calibrated = BehaviorRecommendationService.calibrateTimingScores(
+                baseStop, stopPrior, 0.48
+        );
+        int before = BehaviorRecommendationService.selectPeakIndices(baseStop, 1, 2).getFirst();
+        int after = BehaviorRecommendationService.selectPeakIndices(calibrated, 1, 2).getFirst();
+
+        assertThat(Math.abs(after * 30 - 19 * 60 - 19))
+                .isLessThanOrEqualTo(Math.abs(before * 30 - 19 * 60 - 19));
+        assertThat(after).isEqualTo(39);
+    }
 }

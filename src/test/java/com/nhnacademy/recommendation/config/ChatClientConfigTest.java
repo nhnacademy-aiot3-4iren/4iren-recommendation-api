@@ -13,6 +13,7 @@ class ChatClientConfigTest {
         assertThat(ChatClientConfig.WELCOME_BRIEFING_SYSTEM_PROMPT)
                 .contains("모든 deviceType(AIR_CONDITIONER, HEATER, VENTILATION 등을 포함)")
                 .contains("startTime 또는 endTime이 있으면, 해당 추천 조치에 제공된 시간을 반드시 명시하세요.")
+                .contains("LOW는 confidence < 0.50, MEDIUM은 0.50 이상 0.75 미만, HIGH는 0.75 이상입니다.")
                 .contains("confidence가 낮더라도 원래 startTime/endTime을 제거하거나")
                 .contains("\"가동 유지\", \"적절한 시간\" 같은 모호한 표현으로 대체하지 마세요.")
                 .contains("confidence가 낮은 경우에도 추천 시간은 그대로 유지하고")
