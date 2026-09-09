@@ -70,8 +70,12 @@ public class LlmConversationContextService {
     }
 
     public void saveTeamMention(Long userId, Long teamId) {
+        saveTeamMention(userId, teamId, null);
+    }
+
+    public void saveTeamMention(Long userId, Long teamId, String teamName) {
         if (teamId != null) {
-            saveMention(userId, new MentionedEntityDto(MentionedEntityType.TEAM, teamId, null));
+            saveMention(userId, new MentionedEntityDto(MentionedEntityType.TEAM, teamId, teamName));
         }
     }
 
@@ -113,7 +117,7 @@ public class LlmConversationContextService {
     public void saveRoomDetailMentions(Long userId, Long teamId, RoomDetailResponse response) {
         saveTeamMention(userId, teamId);
         if (response != null) {
-            saveBuildingMention(userId, response.buildingId(), null);
+            saveBuildingMention(userId, response.buildingId(), response.buildingName());
             saveRoomMention(userId, response.roomId(), response.roomName());
         }
     }

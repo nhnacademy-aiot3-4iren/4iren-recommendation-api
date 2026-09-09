@@ -48,4 +48,19 @@ public class CoreSubscriptionRoomService {
         }
 
     }
+
+    public void unsubscribeFromRoom(Long userId, UserRole userRole, Long teamId, Long roomId) {
+        requirePositive(userId, "userId");
+        requireNonNull(userRole, "userRole");
+        requirePositive(teamId, "teamId");
+        requirePositive(roomId, "roomId");
+
+        try {
+            coreClient.unsubscribeFromRoom(userId, userRole, teamId, roomId);
+        } catch (Exception e) {
+            log.warn("[CoreSubscriptionRoomService] 구독 취소 실패. userId={}, role={}, teamId={}, roomId={}",
+                    userId, userRole, teamId, roomId, e);
+            throw e;
+        }
+    }
 }
