@@ -129,6 +129,22 @@
             <artifactId>onnxruntime</artifactId>
             <version>${onnxruntime.version}</version>
         </dependency>
+
+        <!-- 스프링 부트 3.x용 분산 추적(Tracing) 기본 도구 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+        </dependency>
+        <!-- 수집한 추적 데이터를 Zipkin 서버로 쏴주는 배달부 -->
+        <dependency>
+            <groupId>io.zipkin.reporter2</groupId>
+            <artifactId>zipkin-reporter-brave</artifactId>
+        </dependency>
+        <!-- FeignClient 요청 시 Zipkin TraceId를 헤더에 자동으로 넣어주는 라이브러리 -->
+        <dependency>
+            <groupId>io.github.openfeign</groupId>
+            <artifactId>feign-micrometer</artifactId>
+        </dependency>
     </dependencies>
 
     <dependencyManagement>
