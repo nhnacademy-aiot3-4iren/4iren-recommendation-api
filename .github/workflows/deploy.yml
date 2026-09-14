@@ -59,6 +59,7 @@ jobs:
           docker build -t ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest .
           docker push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
 
+  # 2. 서버에 배포
   deploy:
     needs: build-and-push
     runs-on: self-hosted
@@ -118,7 +119,7 @@ jobs:
           fi
 
           echo "무중단 배포가 완료되었습니다!"
-          
+
   # 3. 텔레그램 결과 알림 (빌드나 배포가 실패해도 무조건 실행됨)
   notify:
     needs: [ build-and-push, deploy ]
@@ -136,3 +137,4 @@ jobs:
             - 배포(Deploy): ${{ needs.deploy.result }}
 
             커밋 메시지: ${{ github.event.head_commit.message }}
+          
