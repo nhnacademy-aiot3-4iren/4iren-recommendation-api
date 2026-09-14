@@ -20,13 +20,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Telegram으로 PR 알림 보내기
-        # PR을 처음 생성하거나 리뷰어를 지정했을 때만 텔레그램 알림 전송
-        if: github.event.action == 'opened' || github.event.action == 'review_requested'
-        uses: F2had/pr-telegram-action@v1.0.0
+      # PR이 처음 생성되었을 때 알림
+      - name: Telegram으로 PR 생성 알림 보내기
+        if: github.event.action == 'opened'
+        uses: appleboy/telegram-action@master
+        continue-on-error: true
         with:
-          bot_token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            🔔 PR 생성 알림
+
+            📝 제목: ${{ github.event.pull_request.title }}
+            👤 작성자: ${{ github.event.pull_request.user.login }}
+            🌿 브랜치: ${{ github.event.pull_request.head.ref }} → ${{ github.event.pull_request.base.ref }}
+
+            🔗 PR 링크: ${{ github.event.pull_request.html_url }}
+
+      # 리뷰어가 지정(요청)되었을 때 알림
+      - name: Telegram으로 리뷰 요청 알림 보내기
+        if: github.event.action == 'review_requested'
+        uses: appleboy/telegram-action@master
+        continue-on-error: true
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            👀 PR 리뷰 알림
+
+            📝 제목: ${{ github.event.pull_request.title }}
+            🙋‍♂️ 요청한 사람: ${{ github.event.sender.login }}
+            🎯 지정된 리뷰어: @${{ github.event.requested_reviewer.login }}
+            🌿 브랜치: ${{ github.event.pull_request.head.ref }} → ${{ github.event.pull_request.base.ref }}
+
+            🔗 PR 링크: ${{ github.event.pull_request.html_url }}
 
       - name: 코드 가져오기
         uses: actions/checkout@v3
@@ -43,6 +70,10 @@ jobs:
 
       - name: Maven 실행 권한 부여
         run: chmod +x ./mvnw
+
+      # 명령어 옵션
+      # -Djacoco.haltOnFailure: Jacoco 커버리지 검사 (60%)
+      # -Dsonar.qualitygate.wait: Sonarqube 퀄리티 게이트 검사 (80%)
 
       # develop 브랜치 소나큐브 적용 (실패 시 최대 3회 재시도)
       - name: 코드 빌드 및 소나큐브 분석 (Develop)

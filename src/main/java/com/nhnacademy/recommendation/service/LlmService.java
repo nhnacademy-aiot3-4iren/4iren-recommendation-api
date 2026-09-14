@@ -42,7 +42,7 @@ public class LlmService {
             Long userId = headerUserId;
             UserRole resolvedRole = role == null ? UserRole.NORMAL : role;
             RequestSource source = RequestSource.from(clientType);
-            LlmConversationContext conversationContext = resolveConversationContext(userId, source);
+            LlmConversationContext conversationContext = resolveConversationContext(userId, source, request.roomSubInfo());
 
             log.info("User ID: {}, requestSource: {}", userId, source);
             try {
@@ -120,16 +120,36 @@ public class LlmService {
         return stripped.replaceFirst("\\s*```$", "").trim();
     }
 
-    private LlmConversationContext resolveConversationContext(Long userId, RequestSource source) {
+    private LlmConversationContext resolveConversationContext(
+            Long userId,
+            RequestSource source,
+            List<com.nhnacademy.recommendation.dto.roomsub.RoomSubResponse> roomSubInfo) {
         if (source == RequestSource.TELEGRAM) {
             LlmConversationContext context = llmConversationContextService.findTelegramConversationContext(userId);
             Long roomId = llmConversationContextService.findTelegramLastMentionedRoomId(userId);
             if (roomId == null) {
                 return context;
             }
-            return context.withMention(new MentionedEntityDto(MentionedEntityType.ROOM, roomId, null));
+            return context.withMention(new MentionedEntityDto(
+                    MentionedEntityType.ROOM,
+                    roomId,
+                    findRoomName(roomSubInfo, roomId)
+            ));
         }
         return llmConversationContextService.find(userId);
+    }
+
+    private String findRoomName(List<com.nhnacademy.recommendation.dto.roomsub.RoomSubResponse> roomSubInfo,
+                                Long roomId) {
+        if (roomSubInfo == null || roomSubInfo.isEmpty()) {
+            return null;
+        }
+        return roomSubInfo.stream()
+                .filter(room -> room.roomId() != null && room.roomId().equals(roomId))
+                .map(com.nhnacademy.recommendation.dto.roomsub.RoomSubResponse::roomName)
+                .filter(name -> name != null && !name.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     private String formatRecentConversation(LlmConversationContext context) {
@@ -152,12 +172,18 @@ public class LlmService {
 
         StringBuilder builder = new StringBuilder();
         for (MentionedEntityDto mention : context.mentions()) {
-            builder.append("- ")
-                    .append(mention.type())
-                    .append(": id=")
-                    .append(mention.id());
             if (mention.name() != null && !mention.name().isBlank()) {
-                builder.append(", name=").append(mention.name());
+                builder.append("- ")
+                        .append(mention.type())
+                        .append(": name=")
+                        .append(mention.name())
+                        .append(", id=")
+                        .append(mention.id());
+            } else {
+                builder.append("- ")
+                        .append(mention.type())
+                        .append(": id=")
+                        .append(mention.id());
             }
             builder.append("\n");
         }
@@ -171,10 +197,10 @@ public class LlmService {
 
         StringBuilder builder = new StringBuilder();
         for (com.nhnacademy.recommendation.dto.roomsub.RoomSubResponse room : roomSubInfo) {
-            builder.append("- roomId=")
+            builder.append("- roomName=")
+                    .append(firstNonBlank(room.roomName(), "이름 없음"))
+                    .append(", roomId=")
                     .append(room.roomId())
-                    .append(", roomName=")
-                    .append(firstNonBlank(room.roomName(), ""))
                     .append(", notificationEnabled=")
                     .append(room.notificationEnabled())
                     .append("\n");

@@ -2,10 +2,50 @@
 ### llm호출
 POST http://localhost:8763/api/recommendation/chat
 Content-Type: application/json
-X-User-Id: 1
+X-User-Id: 2
 X-User-Role: NORMAL
 
 {
-  "message": "현재 내가 구독중인 강의실 목록",
-  "requestedAt": "2026-07-30T11:20:00"
+  "message": "12번 강의실",
+  "requestedAt": "2026-08-18T11:20:00"
 }
+
+### welcome briefing
+POST http://localhost:8763/api/recommendation/welcome-briefing
+Content-Type: application/json
+
+{
+  "teamId": 1,
+  "roomId": 1
+}
+
+
+### welcome briefing cache delete
+DELETE http://localhost:8763/api/recommendation/welcome-briefing/cache
+Content-Type: application/json
+
+### daily summary - past date
+POST http://localhost:8763/api/recommendation/daily-summary
+Content-Type: application/json
+
+{
+  "teamId": 1,
+  "roomId": 1,
+  "date": "2026-08-26"
+}
+
+### daily summary - custom hours
+POST http://localhost:8763/api/recommendation/daily-summary
+Content-Type: application/json
+
+{
+  "teamId": 1,
+  "roomId": 1,
+  "date": "2026-08-20",
+  "startHour": 10,
+  "endHour": 17
+}
+
+### daily summary cache delete
+DELETE http://localhost:8763/api/recommendation/daily-summary/cache
+Content-Type: application/json

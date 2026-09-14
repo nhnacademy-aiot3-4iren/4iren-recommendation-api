@@ -7,12 +7,20 @@ import com.nhnacademy.recommendation.dto.kma.KmaForecastWeatherResponseDto;
 import com.nhnacademy.recommendation.dto.room.RoomDetailResponse;
 import com.nhnacademy.recommendation.dto.room.RoomDevicesResponse;
 import com.nhnacademy.recommendation.dto.room.RoomRegionResponse;
+import com.nhnacademy.recommendation.dto.sensor.SensorMetricSummaryResponse;
 import com.nhnacademy.recommendation.dto.welcomebriefing.*;
+import com.nhnacademy.recommendation.exception.ModelServingException;
+import com.nhnacademy.recommendation.exception.RoomPreferenceNotFoundException;
+import com.nhnacademy.recommendation.model.behavior.BehaviorRecommendation;
+import com.nhnacademy.recommendation.service.behavior.BehaviorRecommendationService;
 import com.nhnacademy.recommendation.service.core.CoreRequestValidator;
 import com.nhnacademy.recommendation.service.core.CoreRoomService;
+import com.nhnacademy.recommendation.service.core.CoreSensorService;
 import com.nhnacademy.recommendation.service.core.CoreWeatherService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -27,53 +35,88 @@ import java.util.List;
 @Slf4j
 public class WelcomeBriefingService {
 
+    private static final ZoneId BEHAVIOR_ZONE_ID = ZoneId.of("Asia/Seoul");
+    private static final LocalTime WELCOME_BRIEFING_CUTOFF_TIME = LocalTime.of(10, 0);
+
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
     private final CoreWeatherService weatherService;
     private final CoreRoomService coreRoomService;
+    private final CoreSensorService coreSensorService;
     private final WelcomeBriefingPolicyService welcomeBriefingPolicyService;
+    private final ObjectProvider<BehaviorRecommendationService> behaviorRecommendationServiceProvider;
+    private final Clock clock;
 
+    @Autowired
     public WelcomeBriefingService(@Qualifier("welcomeBriefingChatClient") ChatClient chatClient,
                                   ObjectMapper objectMapper,
                                   CoreWeatherService weatherService,
                                   CoreRoomService coreRoomService,
-                                  WelcomeBriefingPolicyService welcomeBriefingPolicyService) {
+                                  CoreSensorService coreSensorService,
+                                  WelcomeBriefingPolicyService welcomeBriefingPolicyService,
+                                  ObjectProvider<BehaviorRecommendationService> behaviorRecommendationServiceProvider) {
+        this(chatClient, objectMapper, weatherService, coreRoomService, coreSensorService, welcomeBriefingPolicyService,
+                behaviorRecommendationServiceProvider, Clock.system(BEHAVIOR_ZONE_ID));
+    }
+
+    WelcomeBriefingService(ChatClient chatClient,
+                           ObjectMapper objectMapper,
+                           CoreWeatherService weatherService,
+                           CoreRoomService coreRoomService,
+                           CoreSensorService coreSensorService,
+                           WelcomeBriefingPolicyService welcomeBriefingPolicyService,
+                           ObjectProvider<BehaviorRecommendationService> behaviorRecommendationServiceProvider,
+                           Clock clock) {
         this.chatClient = chatClient;
         this.objectMapper = objectMapper;
         this.weatherService = weatherService;
         this.coreRoomService = coreRoomService;
+        this.coreSensorService = coreSensorService;
         this.welcomeBriefingPolicyService = welcomeBriefingPolicyService;
+        this.behaviorRecommendationServiceProvider = behaviorRecommendationServiceProvider;
+        this.clock = clock;
     }
 
     public WelcomeBriefingResponse generateWelcomeBriefing(Long teamId, Long roomId) {
         CoreRequestValidator.requirePositive(teamId, "teamId");
         CoreRequestValidator.requirePositive(roomId, "roomId");
+        validateRequestTime();
 
-        // 1. 현재 센서 데이터와 ML 추천 스케줄을 조회한다.
-        //    - 현재 센서 데이터는 조회 시점의 즉시 주의사항 판단에 사용한다.
+        // 1. Core room catalog에서 요청 roomId의 실제 방 metadata를 조회한다.
+        RoomDetailResponse room = coreRoomService.getRoomDetailInternal(roomId);
+
+        // 2. ML 추천 스케줄과 현재 센서 데이터를 조회한다.
         //    - ML 추천 스케줄은 이전 센서 데이터와 과거 기기 작동 이력을 반영한 오늘 관리 방안으로 사용한다.
+        //    - 현재 센서 데이터는 조회 시점의 즉시 주의사항 판단에 사용한다.
+        WelcomeBriefingMlRecommendation mlRecommendation = fetchMlRecommendation(
+                roomId,
+                room
+        );
+        try {
+            String payload = objectMapper.writeValueAsString(mlRecommendation);
+            log.info("[WelcomeBriefing][ML Recommendation] roomId={} payload={}", roomId, payload);
+        } catch (JsonProcessingException e) {
+            log.warn("[WelcomeBriefing][ML Recommendation] JSON serialization failed. roomId={}", roomId, e);
+        }
         CurrentSensorSnapshot currentSensor = fetchCurrentSensorSnapshot(roomId);
-        WelcomeBriefingMlRecommendation mlRecommendation = fetchMlRecommendation(roomId);
 
-        // 2. 스케줄러/내부 작업 전용 Core API로 강의실, 지역명, 기기 정보를 조회한다.
+        // 3. 스케줄러/내부 작업 전용 Core API로 지역명, 기기 정보를 조회한다.
         //    - 이 흐름은 사용자 요청이 아니므로 userId, userRole을 받지 않는다.
         //    - teamId는 사용자 권한 검증이 아니라 팀별 브리핑/날씨 정책 조회 기준으로 사용한다.
         //    - 날씨 조회에는 건물 상세가 아니라 roomId 기준 regionName 조회 결과만 사용한다.
-        RoomDetailResponse room = coreRoomService.getRoomDetailInternal(roomId);
         RoomRegionResponse roomRegion = coreRoomService.getRoomRegion(roomId);
         RoomDevicesResponse devices = coreRoomService.getRoomDevices(roomId);
 
-        // 3. 팀별 외부 날씨 브리핑 정책을 조회한다.
-        //    - 지금은 기본값을 사용하고, 이후 팀별 설정 DB/API가 생기면 이 메서드만 교체한다.
+        // 4. 팀별 외부 날씨 브리핑 정책을 조회한다.
         WelcomeBriefingPolicyDto briefingPolicy = welcomeBriefingPolicyService.getPolicyOrDefault(teamId, roomId);
 
-        // 4. 강의실 지역명 기준으로 외부 날씨와 오늘 예보를 조회한다.
+        // 5. 강의실 지역명 기준으로 외부 날씨와 오늘 예보를 조회한다.
         //    - 외부 날씨는 현재 센서 상태와 ML 추천 스케줄을 보정하거나 주의점을 보완하는 데만 사용한다.
         //    - 예: 환기 필요 + 비/강풍 -> 창문 개방 대신 환기장치 또는 공기청정기 확인.
         KmaCurrentWeatherResponseDto currentWeather = weatherService.getCurrentWeather(roomRegion.regionName());
         KmaForecastWeatherResponseDto forecastWeather = weatherService.getForecastWeather(roomRegion.regionName());
 
-        // 5. LLM 전달용 컨텍스트를 구성한다.
+        // 6. LLM 전달용 컨텍스트를 구성한다.
         //    - 현재 센서 데이터와 ML 추천 스케줄은 원본 의미를 분리해서 전달한다.
         //    - 날씨/예보/기기 목록은 조치 실행 가능성과 주의점 보강용 맥락이다.
         WelcomeBriefingContext context = new WelcomeBriefingContext(
@@ -85,7 +128,7 @@ public class WelcomeBriefingService {
                 mlRecommendation
         );
 
-        // 6. LLM은 주어진 컨텍스트를 브리핑 문장으로 정리한다.
+        // 7. LLM은 주어진 컨텍스트를 브리핑 문장으로 정리한다.
         //    - 현재 상태는 currentSensor를 우선하고, 하루 관리 방안은 mlRecommendation을 우선한다.
         //    - 입력에 없는 수치나 상태는 생성하지 않도록 시스템 프롬프트에서 제한한다.
         return chatClient.prompt()
@@ -94,57 +137,122 @@ public class WelcomeBriefingService {
                 .entity(WelcomeBriefingResponse.class);
     }
 
+    private void validateRequestTime() {
+        if (!LocalTime.now(clock).isBefore(WELCOME_BRIEFING_CUTOFF_TIME)) {
+            throw new IllegalArgumentException("웰컴 브리핑은 10시 전까지만 생성할 수 있습니다.");
+        }
+    }
+
     private CurrentSensorSnapshot fetchCurrentSensorSnapshot(Long roomId) {
-        // TODO: 현재 센서 데이터 조회 API 호출로 교체한다.
-        // 예: sensorClient.getCurrentSensorSnapshot(roomId)
+        SensorMetricSummaryResponse summary = coreSensorService.getSensorMetricSummaryInternal(roomId);
+        List<SensorMetricSummaryResponse.Metric> metrics = summary.metrics() == null
+                ? List.of()
+                : summary.metrics();
+        Double temperature = findAverageValue(metrics, "temperature");
+        Double humidity = findAverageValue(metrics, "humidity");
+        Double co2 = findAverageValue(metrics, "co2");
+
         return new CurrentSensorSnapshot(
-                roomId,
-                OffsetDateTime.of(2026, 8, 10, 8, 0, 0, 0, ZoneOffset.of("+09:00")),
-                25.0,
-                42.0,
-                980.0,
-                4,
-                4,
-                true
+                summary.roomId() != null ? summary.roomId() : roomId,
+                toServiceOffsetDateTime(summary.calculatedAt()),
+                temperature,
+                humidity,
+                co2,
+                null,
+                null,
+                temperature != null && humidity != null && co2 != null
         );
     }
 
-    private WelcomeBriefingMlRecommendation fetchMlRecommendation(Long roomId) {
-        // TODO: ML 추천 스케줄 API 호출로 교체한다.
-        // 예: mlRecommendationClient.getDailyDeviceUsageSchedule(roomId)
+    private Double findAverageValue(List<SensorMetricSummaryResponse.Metric> metrics, String metricCode) {
+        return metrics.stream()
+                .filter(metric -> metric.metricCode() != null)
+                .filter(metric -> metric.metricCode().equalsIgnoreCase(metricCode))
+                .map(SensorMetricSummaryResponse.Metric::averageValue)
+                .filter(value -> value != null)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private OffsetDateTime toServiceOffsetDateTime(Instant instant) {
+        if (instant == null) {
+            return null;
+        }
+        return OffsetDateTime.ofInstant(instant, BEHAVIOR_ZONE_ID);
+    }
+
+    private WelcomeBriefingMlRecommendation fetchMlRecommendation(Long roomId, RoomDetailResponse room) {
+        LocalDate predictionDate = LocalDate.now(clock);
+        String locationMetadata = roomMetadata(room, roomId);
+        BehaviorRecommendationService behaviorRecommendationService = behaviorRecommendationServiceProvider
+                .getIfAvailable();
+        if (behaviorRecommendationService == null) {
+            throw new ModelServingException(
+                    "Model serving이 비활성화되어 Behavior 추천을 생성할 수 없습니다."
+            );
+        }
+        BehaviorRecommendation recommendation;
+        try {
+            recommendation = behaviorRecommendationService.recommend(
+                    predictionDate,
+                    roomId,
+                    locationMetadata
+            );
+        } catch (RoomPreferenceNotFoundException exception) {
+            log.warn("[WelcomeBriefing] 모델 Bundle에 없는 roomId라 빈 ML 추천으로 브리핑을 생성합니다. roomId={}", roomId);
+            return emptyMlRecommendation(predictionDate, roomId, locationMetadata);
+        }
+        return toWelcomeBriefingMlRecommendation(recommendation);
+    }
+
+    private String roomMetadata(RoomDetailResponse room, Long requestedRoomId) {
+        if (room.description() != null && !room.description().isBlank()) {
+            return room.description().trim();
+        }
+        if (room.roomName() != null && !room.roomName().isBlank()) {
+            return room.roomName().trim();
+        }
+        return "room-" + requestedRoomId;
+    }
+
+    private WelcomeBriefingMlRecommendation emptyMlRecommendation(LocalDate predictionDate,
+                                                                  Long roomId,
+                                                                  String locationMetadata) {
         return new WelcomeBriefingMlRecommendation(
-                "4iren.welcome-briefing.behavior.v1",
+                "4iren.behavior.recommendation.v1",
                 new WelcomeBriefingMlRecommendation.Context(
-                        LocalDate.of(2026, 8, 10),
-                        DayOfWeek.MONDAY,
+                        predictionDate,
+                        predictionDate.getDayOfWeek(),
                         roomId,
-                        "실습실",
-                        "Asia/Seoul"
+                        locationMetadata,
+                        BEHAVIOR_ZONE_ID.getId()
                 ),
-                "DAILY_DEVICE_USAGE_SCHEDULE",
-                List.of(
-                        new WelcomeBriefingMlRecommendation.RecommendedSchedule(
-                                "AIR_CONDITIONER",
-                                "ON",
-                                LocalTime.of(8, 30),
-                                LocalTime.of(22, 0),
-                                0.3099
-                        ),
-                        new WelcomeBriefingMlRecommendation.RecommendedSchedule(
-                                "VENTILATION",
-                                "ON",
-                                LocalTime.of(12, 0),
-                                LocalTime.of(12, 30),
-                                0.9414
-                        ),
-                        new WelcomeBriefingMlRecommendation.RecommendedSchedule(
-                                "AIR_CONDITIONER",
-                                "OFF",
-                                LocalTime.of(22, 0),
-                                null,
-                                0.1596
-                        )
-                )
+                "NO_MODEL_PROFILE",
+                List.of()
+        );
+    }
+
+    private WelcomeBriefingMlRecommendation toWelcomeBriefingMlRecommendation(
+            BehaviorRecommendation recommendation) {
+        return new WelcomeBriefingMlRecommendation(
+                recommendation.schemaVersion(),
+                new WelcomeBriefingMlRecommendation.Context(
+                        recommendation.context().predictionDate(),
+                        recommendation.context().weekday(),
+                        recommendation.context().roomId(),
+                        recommendation.context().location(),
+                        recommendation.context().timezone()
+                ),
+                recommendation.recommendationType(),
+                recommendation.recommendedSchedule().stream()
+                        .map(schedule -> new WelcomeBriefingMlRecommendation.RecommendedSchedule(
+                                schedule.deviceType(),
+                                schedule.action(),
+                                schedule.startTime(),
+                                schedule.endTime(),
+                                schedule.confidence()
+                        ))
+                        .toList()
         );
     }
 
@@ -166,7 +274,7 @@ public class WelcomeBriefingService {
             return List.of();
         }
         return response.devices().stream()
-                .map(device -> DeviceStatus.normal(device.deviceId(), device.deviceName(), null))
+                .map(device -> DeviceStatus.normal(device.deviceId(), device.deviceName()))
                 .toList();
     }
 

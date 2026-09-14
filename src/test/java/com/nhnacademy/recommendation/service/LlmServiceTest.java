@@ -122,9 +122,9 @@ class LlmServiceTest {
         ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
         verify(requestSpec).user(promptCaptor.capture());
         assertThat(promptCaptor.getValue())
-                .contains("ROOM: id=20")
+                .contains("ROOM: name=201호, id=20")
                 .contains("구독 중인 강의실:")
-                .contains("roomId=20, roomName=201호")
+                .contains("roomName=201호, roomId=20")
                 .contains("이전 질문: 201호 상태 알려줘")
                 .contains("이전 답변: 201호는 환기가 필요합니다.");
 

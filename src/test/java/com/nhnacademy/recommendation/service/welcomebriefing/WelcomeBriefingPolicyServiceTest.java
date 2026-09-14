@@ -101,7 +101,7 @@ class WelcomeBriefingPolicyServiceTest {
     void createPolicy_AccessDenied() {
         WelcomeBriefingPolicyDto request = new WelcomeBriefingPolicyDto(30, 60, 8.0, 70, true);
         given(coreTeamService.getTeamsByUser(1L, UserRole.NORMAL))
-                .willReturn(List.of(new TeamResponse(3L, "3번팀", "설명", TeamRole.MEMBER)));
+                .willReturn(List.of(new TeamResponse(3L, "3번팀", "설명", TeamRole.NORMAL)));
 
         assertThatThrownBy(() -> service.createPolicy(1L, UserRole.NORMAL, 3L, 10L, request))
                 .isInstanceOf(PolicyAccessDeniedException.class);

@@ -171,8 +171,25 @@ class LlmConversationContextServiceTest {
         LlmConversationContext lastSavedContext = objectMapper.readValue(jsonCaptor.getAllValues().getLast(), LlmConversationContext.class);
         assertThat(lastSavedContext.mentions()).containsExactly(
                 new MentionedEntityDto(MentionedEntityType.ROOM, 20L, "201호"),
-                new MentionedEntityDto(MentionedEntityType.BUILDING, 10L, null),
+                new MentionedEntityDto(MentionedEntityType.BUILDING, 10L, "본관"),
                 new MentionedEntityDto(MentionedEntityType.TEAM, 3L, null)
+        );
+    }
+
+    @Test
+    @DisplayName("같은 엔티티를 이름 없이 다시 저장해도 기존 이름을 보존한다")
+    void saveMentionPreservesExistingName() throws Exception {
+        LlmConversationContext context = LlmConversationContext.empty()
+                .withMention(new MentionedEntityDto(MentionedEntityType.BUILDING, 10L, "본관"));
+        useRedisValue(objectMapper.writeValueAsString(context));
+        ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+
+        service.saveBuildingMention(1L, 10L, null);
+
+        verify(valueOperations).set(eq(KEY), jsonCaptor.capture(), eq(TTL));
+        LlmConversationContext savedContext = objectMapper.readValue(jsonCaptor.getValue(), LlmConversationContext.class);
+        assertThat(savedContext.mentions()).containsExactly(
+                new MentionedEntityDto(MentionedEntityType.BUILDING, 10L, "본관")
         );
     }
 

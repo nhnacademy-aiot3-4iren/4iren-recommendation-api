@@ -1,21 +1,17 @@
 package com.nhnacademy.recommendation.service.welcomebriefing;
 
+import com.nhnacademy.recommendation.config.CacheConfig;
 import com.nhnacademy.recommendation.dto.UserRole;
 import com.nhnacademy.recommendation.dto.team.TeamResponse;
 import com.nhnacademy.recommendation.dto.team.TeamRole;
 import com.nhnacademy.recommendation.dto.welcomebriefing.WelcomeBriefingPolicyDto;
 import com.nhnacademy.recommendation.entity.WelcomeBriefingPolicy;
-import com.nhnacademy.recommendation.exception.InvalidPolicyRangeException;
-import com.nhnacademy.recommendation.exception.NotPositiveValueException;
-import com.nhnacademy.recommendation.exception.PolicyAccessDeniedException;
-import com.nhnacademy.recommendation.exception.PolicyDuplicateException;
-import com.nhnacademy.recommendation.exception.PolicyNotFoundException;
-import com.nhnacademy.recommendation.exception.ProbabilityRangeException;
-import com.nhnacademy.recommendation.exception.RequiredValueException;
+import com.nhnacademy.recommendation.exception.*;
 import com.nhnacademy.recommendation.repository.WelcomeBriefingPolicyRepository;
 import com.nhnacademy.recommendation.service.core.CoreTeamService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +40,7 @@ public class WelcomeBriefingPolicyService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = CacheConfig.WELCOME_BRIEFING_CACHE, allEntries = true)
     public WelcomeBriefingPolicy createPolicy(Long userId,
                                               UserRole userRole,
                                               Long teamId,
@@ -71,6 +68,7 @@ public class WelcomeBriefingPolicyService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = CacheConfig.WELCOME_BRIEFING_CACHE, allEntries = true)
     public WelcomeBriefingPolicy updatePolicy(Long userId,
                                               UserRole userRole,
                                               Long teamId,
@@ -94,6 +92,7 @@ public class WelcomeBriefingPolicyService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = CacheConfig.WELCOME_BRIEFING_CACHE, allEntries = true)
     public void deletePolicy(Long userId, UserRole userRole, Long teamId, Long roomId) {
         validateWritablePolicyAccess(userId, userRole, teamId);
         validateScope(teamId, roomId);
@@ -101,6 +100,7 @@ public class WelcomeBriefingPolicyService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = CacheConfig.WELCOME_BRIEFING_CACHE, allEntries = true)
     public void updatePolicyEnabled(Long userId,
                                     UserRole userRole,
                                     Long teamId,

@@ -1,5 +1,7 @@
 package com.nhnacademy.recommendation.dto.welcomebriefing;
 
+import com.nhnacademy.recommendation.model.behavior.BehaviorConfidenceLabel;
+
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -26,7 +28,26 @@ public record WelcomeBriefingMlRecommendation(
             String action,
             LocalTime startTime,
             LocalTime endTime,
-            Double confidence
+            Double confidence,
+            BehaviorConfidenceLabel confidenceLabel
     ) {
+        public RecommendedSchedule(String deviceType,
+                                   String action,
+                                   LocalTime startTime,
+                                   LocalTime endTime,
+                                   Double confidence) {
+            this(
+                    deviceType,
+                    action,
+                    startTime,
+                    endTime,
+                    confidence,
+                    BehaviorConfidenceLabel.from(confidence)
+            );
+        }
+
+        public RecommendedSchedule {
+            confidenceLabel = BehaviorConfidenceLabel.from(confidence);
+        }
     }
 }

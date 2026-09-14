@@ -3,10 +3,9 @@ package com.nhnacademy.recommendation.dto.welcomebriefing;
 public record DeviceStatus(
         Long deviceId,
         String deviceName,
-        String deviceType,
         String status
 ) {
-    public static DeviceStatus normal(Long deviceId, String deviceName, String deviceType) {
-        return new DeviceStatus(deviceId, deviceName, deviceType, "정상 작동");
+    public static DeviceStatus normal(Long deviceId, String deviceName) {
+        return new DeviceStatus(deviceId, deviceName, "정상 작동");
     }
 }

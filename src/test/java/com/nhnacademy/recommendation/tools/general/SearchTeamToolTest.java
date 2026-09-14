@@ -41,7 +41,7 @@ class SearchTeamToolTest {
     @Test
     @DisplayName("가입중인 팀 목록 조회")
     void getTeams(){
-        List<TeamResponse> teams = List.of(new TeamResponse(3L, "3번팀", "3번팀 설명", TeamRole.MEMBER));
+        List<TeamResponse> teams = List.of(new TeamResponse(3L, "3번팀", "3번팀 설명", TeamRole.NORMAL));
 
         given(contextHolder.get()).willReturn(context);
         given(coreTeamService.getTeamsByUser(1L, UserRole.NORMAL)).willReturn(teams);
